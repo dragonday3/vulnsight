@@ -32,10 +32,14 @@ export default async function ScanReportPage({
 }: PageProps<"/projects/[projectId]/scans/[scanId]/report">) {
   const { projectId, scanId } = await params;
 
-  // getScanReport() is the one fetch this page cannot render without — a
-  // genuine 404 (no Report yet, or the scan itself doesn't exist) routes to
-  // Next's not-found UI, distinct from a backend-unreachable/network
-  // failure, which falls through to the same inline "couldn't load" error
+  // getScanReport() is the one fetch this page cannot render without.
+  // report_service.get_report raises two textually distinct 404s: "Scan
+  // {id} not found" (the scan itself doesn't exist — a genuine 404, Next's
+  // not-found UI) vs "Report for scan {id} not found" (the scan exists but
+  // hasn't reached REPORT_GENERATION yet, or that stage failed — the scan/
+  // back-link context is still valid here, so this gets an inline
+  // explanation instead of a bare not-found page). A backend-unreachable/
+  // network failure falls through to the same inline "couldn't load" error
   // card the scan-results page uses for its own getScan() call.
   let report: ReportRead;
   try {
@@ -43,6 +47,25 @@ export default async function ScanReportPage({
   } catch (err) {
     const message = err instanceof Error ? err.message : "";
     if (message.startsWith("API error 404:")) {
+      if (message.includes("Report for scan")) {
+        return (
+          <div className="min-h-screen bg-zinc-50">
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12">
+              <Link
+                href={`/projects/${projectId}/scans/${scanId}`}
+                className="text-sm text-zinc-500 hover:underline"
+              >
+                &larr; Back to scan
+              </Link>
+              <p className="rounded-lg border border-zinc-200 bg-white px-4 py-6 text-center text-sm text-zinc-500">
+                No report is available for this scan yet. If the scan is
+                still running, check back once it completes — if it has
+                already completed, report generation may have failed.
+              </p>
+            </div>
+          </div>
+        );
+      }
       notFound();
     }
     return (

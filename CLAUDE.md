@@ -235,11 +235,7 @@ conventions below should track reality, not the plan that predates it.
   their respective pipeline stages — confirming or invalidating a
   `Finding` via `PATCH /findings/{id}` after a scan completes does
   **not** re-trigger either (deliberate, not a bug — see `PLAN_7.md`'s
-  and `PLAN_8.md`'s Scope limits); a completed scan whose own
-  `REPORT_GENERATION` step failed (or any pre-Phase-8 completed scan)
-  still shows the results page's "View report" link, which 404s on
-  click with no inline explanation — the plan's "guaranteed to exist
-  at `completed`" framing has this one edge case; and today there is
+  and `PLAN_8.md`'s Scope limits); and today there is
   only ever one `Asset` per scan (see Conventions below), so the
   per-Asset and per-Scan risk scores — and the report's per-asset
   breakdown — are currently trivial in every real scan, only becoming
@@ -289,6 +285,25 @@ conventions below should track reality, not the plan that predates it.
   special case needed beyond adding the key to the existing priority
   tuple. See Conventions below for the vulnerability-correlation
   paragraph's fuller note.
+- **"View report" 404 edge case fix** (post-roadmap, no PLAN_N): a
+  completed scan whose own `REPORT_GENERATION` step failed (or any
+  pre-Phase-8 completed scan) still shows the results page's "View
+  report" link — clicking it used to fall straight through to Next's
+  generic not-found page with no explanation, since the frontend
+  treated every 404 from `GET /scans/{id}/report` the same way.
+  `report_service.get_report` already raised two textually distinct
+  `NotFoundError`s (see the Phase 8 bullet above): "Scan {id} not
+  found" (the scan itself doesn't exist) vs "Report for scan {id} not
+  found" (the scan exists, but no report yet or generation failed).
+  The frontend's report page
+  (`frontend/src/app/projects/[projectId]/scans/[scanId]/report/
+  page.tsx`) now tells them apart by matching on that message text —
+  the former still calls `notFound()`, the latter now renders an
+  inline explanation with a working "Back to scan" link instead.
+  Verified against a live backend (not just reasoned about): created a
+  real completed scan, deleted its `reports` row to reproduce the
+  failed-generation case, and confirmed the rendered page text for both
+  that case and a genuinely nonexistent scan id.
 
 ## Stack & architecture
 
