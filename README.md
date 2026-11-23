@@ -109,9 +109,7 @@ container start. If migrations ran automatically at startup and one failed,
 the backend container would either crash-loop with an unhelpful error or
 silently keep running against a stale/partial schema — either way the
 failure is masked behind a generic "container didn't come up" symptom
-instead of a clear `alembic upgrade head` error you can act on directly. See
-`PLAN_1.md` (Alembic, around line 127) and `PLAN_1_TASKS.md` Task 5 for the
-same reasoning.
+instead of a clear `alembic upgrade head` error you can act on directly.
 
 ### URLs
 

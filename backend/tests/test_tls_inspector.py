@@ -6,7 +6,7 @@
 `_inspect_port`/`inspect_tls` are the one place this entire phase opens
 a real socket, so they're tested against a REAL local TLS listener, not
 a mock of `ssl`/`socket`/`cryptography` - per this project's own
-established lesson (CLAUDE.md: "trust the live API's actual shape over
+established lesson (dev notes: "trust the live API's actual shape over
 how it looks in a mock"). The repo already has one TLS-test-fixture
 precedent (`test_http_prober.py`'s `test_self_signed_https_target_is_
 still_probed`), but that one shells out to the `openssl` CLI and skips

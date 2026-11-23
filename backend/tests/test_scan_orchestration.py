@@ -954,7 +954,7 @@ def test_score_assets_failure_does_not_fail_scan(db: Session, use_test_session: 
 def test_score_assets_called_with_single_asset_list(db: Session, use_test_session: None) -> None:
     """`score_assets` must be invoked with `(db, scan, [asset])` -- the
     single Asset ORM object already built earlier in the task, passed as
-    a one-element list (PLAN_7.md section 3's documented, deliberate
+    a one-element list (Phase 7 notes section 3's documented, deliberate
     one-Asset-per-scan call-site shape).
     """
     scan = _make_scan(db, value="127.0.0.1")

@@ -1,4 +1,4 @@
-"""Report-persistence orchestration glue (Phase 8, PLAN_8.md section 3).
+"""Report-persistence orchestration glue (Phase 8, Phase 8 notes section 3).
 
 Wires the pure `build_report_summary` (report_builder.py, Phase 8 Task 2)
 into a single persisted `Report` row per scan. Mirrors the per-unit

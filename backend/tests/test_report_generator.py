@@ -1,4 +1,4 @@
-"""Unit-level tests for `generate_report` (Phase 8, PLAN_8.md section 3/6).
+"""Unit-level tests for `generate_report` (Phase 8, Phase 8 notes section 3/6).
 
 Mirrors `test_risk_scorer.py`'s own style: a thin `_make_scan`/`_make_asset`
 helper builds a persisted Scan (with its required Target/Project ancestry)

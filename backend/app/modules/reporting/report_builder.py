@@ -1,4 +1,4 @@
-"""Pure report-assembly function (Phase 8, PLAN_8.md §2).
+"""Pure report-assembly function (Phase 8, Phase 8 notes §2).
 
 No DB session, no network, no Redis -- reads only already-loaded ORM
 objects (Scan -> target, Asset -> services -> findings/misconfigurations)

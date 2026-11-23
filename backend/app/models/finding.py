@@ -84,7 +84,7 @@ class Finding(Base):
     # implicitly by this column default, never explicitly in
     # correlator.py (keeping correlator.py's Finding construction
     # unaware of validation entirely -- scoring and validation are
-    # independent concerns that happen to share a table, see PLAN_5.md
+    # independent concerns that happen to share a table, see Phase 5 notes
     # Context).
     validation_state: Mapped[FindingValidationState] = mapped_column(
         Enum(

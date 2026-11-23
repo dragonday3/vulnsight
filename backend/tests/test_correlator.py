@@ -1,4 +1,4 @@
-"""Unit-level tests for `correlate_services` (Task 5, PLAN_4.md section 5).
+"""Unit-level tests for `correlate_services` (Task 5, Phase 4 notes section 5).
 
 `nvd_client.fetch_cves_for_cpe` is mocked directly via
 `patch.object(nvd_client, "fetch_cves_for_cpe", ...)` -- `correlator.py`
@@ -388,7 +388,7 @@ def test_confidence_score_attached_per_service_sharing_one_cpe(
     db: Session, redis_client: redis.Redis
 ) -> None:
     """Two Service rows sharing the SAME CPE but carrying different
-    method/conf evidence (PLAN_5.md section 3's explicitly-called-out
+    method/conf evidence (Phase 5 notes section 3's explicitly-called-out
     scenario) must each get their OWN, evidence-correct confidence_score
     on every Finding row -- confidence must never be computed once for
     the shared CPE and reused across both services.
@@ -421,7 +421,7 @@ def test_confidence_score_attached_per_service_sharing_one_cpe(
 def test_compute_confidence_called_once_per_service_not_once_per_finding(
     db: Session, redis_client: redis.Redis
 ) -> None:
-    """Locks in the "computed once per Service" design from PLAN_5.md
+    """Locks in the "computed once per Service" design from Phase 5 notes
     section 3: with one service whose CPE matches 3+ CVEs,
     `compute_confidence` must be called exactly `len(mapped_services)`
     times, never once per (service, cve) pair -- a regression into the

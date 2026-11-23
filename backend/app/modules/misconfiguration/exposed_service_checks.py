@@ -6,7 +6,7 @@ row's `port`, regardless of which scanner adapter found it. This is "is
 a commonly-dangerous-to-expose service's default port open", never "did
 I verify it's actually unauthenticated" -- verifying that would mean
 connecting and issuing a protocol command, which is exactly the generic
-banner-grabbing this project has already ruled out (see PLAN_6.md's
+banner-grabbing this project has already ruled out (see Phase 6 notes'
 scope limits and Global Constraint 3).
 """
 

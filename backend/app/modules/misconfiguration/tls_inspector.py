@@ -12,8 +12,8 @@ stdlib, so threads are the right concurrency primitive here.
 
 Deliberately independent of `fingerprinting/http_prober.py`:
 `TLS_CANDIDATE_PORTS` is its own constant, not an import of that
-module's private `_TLS_HEURISTIC_PORTS` (see PLAN_6.md's no-touch-other-
-modules rule / CLAUDE.md's discovery/fingerprinting separation
+module's private `_TLS_HEURISTIC_PORTS` (see Phase 6 notes' no-touch-other-
+modules rule / dev notes' discovery/fingerprinting separation
 principle, extended to this module).
 
 `_inspect_port` is the only place this entire phase opens a socket. It
@@ -35,7 +35,7 @@ from app.modules.misconfiguration.checks import MisconfigCandidate
 
 # Deliberately an independent copy, not an import of
 # fingerprinting.http_prober's private _TLS_HEURISTIC_PORTS - see
-# PLAN_6.md's no-touch-other-modules rule. Extended at call time (in
+# Phase 6 notes' no-touch-other-modules rule. Extended at call time (in
 # analyzer.py) with any Service whose service_name suggests TLS on a
 # non-standard port.
 TLS_CANDIDATE_PORTS: frozenset[int] = frozenset({443, 4443, 8443})

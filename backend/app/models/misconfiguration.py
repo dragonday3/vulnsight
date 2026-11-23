@@ -25,7 +25,7 @@ class Misconfiguration(Base):
     # "self-signed-cert" — stable identifiers, never translated/localized
     # here. The uq_misconfig_service_check constraint above is load-bearing:
     # the analyzer must never attempt the same check_id twice for one
-    # service (see PLAN_6_TASKS.md Global Constraint 9).
+    # service (see Phase 6 tasks Global Constraint 9).
     check_id: Mapped[str] = mapped_column(String(50), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     # Plain string, not a DB enum — mirrors Finding.severity's own

@@ -1,4 +1,4 @@
-"""Unit-level tests for `analyze_services` (Task 4, PLAN_6.md section 4).
+"""Unit-level tests for `analyze_services` (Task 4, Phase 6 notes section 4).
 
 Mirrors `test_correlator.py`'s own style: a thin `_make_service` helper
 builds a persisted Service (with its required Asset/Target/Scan/Project

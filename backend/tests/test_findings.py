@@ -154,7 +154,7 @@ def test_patch_nonexistent_finding_returns_404(client: TestClient) -> None:
 def test_patch_already_confirmed_finding_to_false_positive_replaces_note_not_merges(
     client: TestClient, db: Session
 ) -> None:
-    """The one subtlety most worth a dedicated test (per PLAN_5.md §6): a
+    """The one subtlety most worth a dedicated test (per Phase 5 notes §6): a
     Finding already CONFIRMED with a note, re-PATCHed to FALSE_POSITIVE with
     NO note on this second call, must end up with validation_note == None -
     not the old note silently surviving via an exclude_unset-style merge.

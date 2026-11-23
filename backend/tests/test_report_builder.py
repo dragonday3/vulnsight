@@ -1,4 +1,4 @@
-"""Unit tests for the pure report-assembly function (Phase 8, PLAN_8.md §6).
+"""Unit tests for the pure report-assembly function (Phase 8, Phase 8 notes §6).
 
 Zero DB/network/Redis dependency inside the function under test: Scan,
 Target, Asset, Service, Finding and Misconfiguration instances are built

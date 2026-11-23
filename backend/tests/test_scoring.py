@@ -1,4 +1,4 @@
-"""Unit tests for the pure VRPS scoring functions (Phase 7, PLAN_7.md §6).
+"""Unit tests for the pure VRPS scoring functions (Phase 7, Phase 7 notes §6).
 
 Zero DB/network/Redis dependency: Finding and Misconfiguration instances are
 constructed directly in memory (no session, never added/flushed), which is

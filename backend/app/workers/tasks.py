@@ -24,13 +24,13 @@ from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
-# Per PLAN_2.md's discovery-module design notes: a short per-connection
+# Per Phase 2 notes' discovery-module design notes: a short per-connection
 # timeout for the native (asyncio TCP-connect) adapter keeps the default
 # scan profile fast/low-noise, while the nmap adapter needs a much larger
 # *overall* subprocess timeout since it scans up to 1000 ports in one
 # invocation ("a sane overall timeout, e.g. 120s" per the plan).
 #
-# Re-measured 2026-09-17 (Phase 3, PLAN_3.md #2) after adding `-sV` to the
+# Re-measured 2026-09-17 (Phase 3, Phase 3 notes #2) after adding `-sV` to the
 # nmap invocation, since service/version probing is meaningfully slower than
 # a bare `-sT` connect scan. Real top-1000-port `-sV` scans from inside the
 # `backend` container against in-network Docker Compose targets observed:
@@ -47,7 +47,7 @@ NMAP_SCAN_TIMEOUT_SECONDS = 180.0
 # column's practical size.
 MAX_ERROR_MESSAGE_LENGTH = 2000
 
-# Bounded-varchar column truncation guards (final-review fix wave, PLAN_3.md
+# Bounded-varchar column truncation guards (final-review fix wave, Phase 3 notes
 # #2). `Service.service_name`/`product`/`version` are `String(50)`/
 # `String(255)`/`String(100)` columns (see app.models.service) populated
 # from remote, attacker-influenced input on two independent write paths:
@@ -222,7 +222,7 @@ def run_scan_task(scan_id: str) -> None:
             # committed as FAILED above) would otherwise fall through into
             # the FINGERPRINTING/COMPLETED code below and get incorrectly
             # overwritten, since this except block is no longer the last
-            # statement in the function (Phase 3, PLAN_3.md #4).
+            # statement in the function (Phase 3, Phase 3 notes #4).
             return
 
         # Step 8 (Phase 3): FINGERPRINTING. Committed uniformly for both

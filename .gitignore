@@ -29,3 +29,11 @@ Thumbs.db
 
 # Superpowers SDD scratch workspace (per-plan, git-ignored by design)
 .superpowers/
+
+# Local AI-assistant working notes (kept out of the public repo)
+CLAUDE.md
+AGENTS.md
+**/CLAUDE.md
+**/AGENTS.md
+PLAN_*.md
+.claude/

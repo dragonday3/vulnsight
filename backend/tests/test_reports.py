@@ -1,5 +1,5 @@
 """API-level tests for `GET /scans/{scan_id}/report` (Phase 8 Task 4,
-PLAN_8.md section 4/6's fourth bullet).
+Phase 8 notes section 4/6's fourth bullet).
 
 Mirrors `test_scans.py`'s own style: `_create_authorized_target`/
 `_create_scan` build a real scan through the API, and a `Report` row is

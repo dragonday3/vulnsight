@@ -29,7 +29,7 @@ class Asset(Base):
     # NULL means "not yet risk-scored" (pre-Phase-7 row, or this scan
     # hasn't reached RISK_ANALYSIS yet) -- a real, distinct state from a
     # computed score of 0.0/tier "NONE" ("scored, nothing found"). See
-    # PLAN_7.md's architecture-decision #3 for why this is nullable where
+    # Phase 7 notes' architecture-decision #3 for why this is nullable where
     # Finding.confidence_score is not.
     risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     # CRITICAL/HIGH/MEDIUM/LOW/NONE -- same vocabulary and same

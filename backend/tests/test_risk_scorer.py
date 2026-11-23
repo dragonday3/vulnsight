@@ -1,4 +1,4 @@
-"""Unit-level tests for `score_assets` (Phase 7, PLAN_7.md section 3/6).
+"""Unit-level tests for `score_assets` (Phase 7, Phase 7 notes section 3/6).
 
 Mirrors `test_correlator.py`/`test_analyzer.py`'s own style: a thin
 `_make_asset` helper builds a persisted Asset (with its required
@@ -167,7 +167,7 @@ def test_all_assets_failing_leaves_scan_risk_score_null_not_zero(db: Session) ->
     assets. `scored_asset_scores` is then empty, but it must NOT be
     passed into `aggregate_risk`/`tier_for_score` and committed onto
     `scan.risk_score`/`risk_tier` as 0.0/"NONE": that would be
-    indistinguishable from a genuinely clean scan (CLAUDE.md's Global
+    indistinguishable from a genuinely clean scan (dev notes' Global
     Constraint 6). The scan-level columns must stay exactly as they were
     before this call -- NULL, since this scan was never scored.
     """

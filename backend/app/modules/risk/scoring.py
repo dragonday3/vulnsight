@@ -1,4 +1,4 @@
-"""Pure VRPS risk-scoring functions (Phase 7, PLAN_7.md §2).
+"""Pure VRPS risk-scoring functions (Phase 7, Phase 7 notes §2).
 
 No DB session, no network, no Redis -- plain functions over already-built
 Finding/Misconfiguration instances and plain floats. Every branch returns a
@@ -18,11 +18,11 @@ from app.modules.risk.scoring_config import (
 
 def score_finding_contribution(finding: Finding) -> float:
     """0-100. FALSE_POSITIVE findings contribute exactly zero -- per
-    PLAN_5.md's own stated expectation for this phase. UNVALIDATED and
+    Phase 5 notes' own stated expectation for this phase. UNVALIDATED and
     CONFIRMED both contribute at full confidence-discounted weight;
     CONFIRMED gets no additional boost -- confidence_score is already
     the "how sure are we" signal, and double-counting validation on top
-    of it would conflate two mechanisms CLAUDE.md is explicit about
+    of it would conflate two mechanisms dev notes is explicit about
     keeping independent.
     """
     if finding.validation_state == FindingValidationState.FALSE_POSITIVE:

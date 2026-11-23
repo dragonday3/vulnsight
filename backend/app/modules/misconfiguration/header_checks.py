@@ -5,7 +5,7 @@ captured verbatim by Phase 3's `http_prober.py` for every HTTP-probed
 (native-scanner) web service. An nmap-scanned HTTPS service has no
 `headers` evidence at all (nmap's `-sV` doesn't capture response
 headers), so `check_headers` simply produces zero candidates for it --
-not an error (see PLAN_6.md section 2).
+not an error (see Phase 6 notes section 2).
 
 `evidence["headers"]` is a plain `dict[str, str]` with origin-server
 header casing preserved verbatim, never normalized by `http_prober.py` --
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from app.models.service import Service
 
 # Deliberately an independent copy of http_prober.py's private
-# `_SERVER_HEADER_RE`, not an import of it -- PLAN_6.md's no-import rule
+# `_SERVER_HEADER_RE`, not an import of it -- Phase 6 notes' no-import rule
 # for `fingerprinting/` (this module re-derives the same "did the Server
 # header parse into product/version" shape locally instead).
 _SERVER_HEADER_RE = re.compile(r"^(?P<product>[^\s/]+)/(?P<version>\S+)(?:\s+(?P<extrainfo>.*))?$")

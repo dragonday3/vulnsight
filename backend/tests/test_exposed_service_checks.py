@@ -1,4 +1,4 @@
-"""Unit tests for `check_exposed_service` (Task 2, PLAN_6.md section 2).
+"""Unit tests for `check_exposed_service` (Task 2, Phase 6 notes section 2).
 
 Pure-function module with zero DB/network/Redis dependency -- same
 `types.SimpleNamespace` stand-in pattern as `test_confidence.py`/
@@ -44,7 +44,7 @@ def test_non_sensitive_port_returns_none(port: int) -> None:
 
 
 def test_sensitive_ports_table_is_exactly_as_specified() -> None:
-    """Locks in PLAN_6.md section 2's exact table -- a drift here (an
+    """Locks in Phase 6 notes section 2's exact table -- a drift here (an
     added/removed/relabeled port) should be a deliberate, reviewed change,
     not an accidental edit.
     """

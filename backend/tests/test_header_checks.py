@@ -1,4 +1,4 @@
-"""Unit tests for `check_headers` (Task 2, PLAN_6.md section 2).
+"""Unit tests for `check_headers` (Task 2, Phase 6 notes section 2).
 
 Pure-function module with zero DB/network/Redis dependency -- every test
 below builds a plain `types.SimpleNamespace` stand-in carrying only the
@@ -47,7 +47,7 @@ def test_missing_hsts_not_triggered_when_scheme_is_http() -> None:
 
 
 def test_missing_hsts_not_triggered_when_scheme_absent() -> None:
-    """Edge case (PLAN_6.md section 7): scheme missing entirely (not
+    """Edge case (Phase 6 notes section 7): scheme missing entirely (not
     "https", not "http") -- the HSTS check must be correctly skipped, not
     treated as https-by-default.
     """

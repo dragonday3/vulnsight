@@ -1,4 +1,4 @@
-"""Unit tests for `compute_confidence` (Task 2, PLAN_5.md section 1).
+"""Unit tests for `compute_confidence` (Task 2, Phase 5 notes section 1).
 
 Pure-function module with zero DB/network/Redis dependency -- every test
 below builds a plain `types.SimpleNamespace` stand-in carrying only the
@@ -28,7 +28,7 @@ def _service(method: object, conf: object) -> types.SimpleNamespace:
 @pytest.mark.parametrize(
     ("method", "conf", "expected"),
     [
-        # --- worked-examples table, PLAN_5.md section 1 ---
+        # --- worked-examples table, Phase 5 notes section 1 ---
         ("probed", "10", 100.0),
         ("probed", "0", 50.0),
         ("probed", None, 75.0),

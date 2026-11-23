@@ -1,7 +1,7 @@
 """Best-effort HTTP header/title probing for native-scanner-discovered
 open ports that look like they serve HTTP(S).
 
-Deliberately narrow in scope (see PLAN_3.md): a curated port allowlist,
+Deliberately narrow in scope (see Phase 3 notes): a curated port allowlist,
 one scheme attempt per port (no dual-scheme fallback), a short per-request
 timeout distinct from the overall scan timeout, no redirect-following
 (SSRF hygiene), and a bounded response-body read. Failure to probe an
@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 import httpx
 
-# Curated allowlist: the ports PLAN_3.md calls out explicitly, unioned
+# Curated allowlist: the ports Phase 3 notes calls out explicitly, unioned
 # with every port in modules.discovery.common_ports.PORT_NAMES whose name
 # suggests a general-purpose web server (http/https/http-alt/http-proxy),
 # hand-checked to exclude lookalikes that speak HTTP-ish protocols but

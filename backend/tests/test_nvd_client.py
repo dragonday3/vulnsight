@@ -294,7 +294,7 @@ def test_fetch_cves_one_malformed_cve_does_not_blind_the_whole_batch(monkeypatch
 
 def test_fetch_cves_total_results_from_response_not_len_of_parsed_list(monkeypatch) -> None:
     """`total_results` must reflect NVD's own `totalResults` field, not
-    just `len(cves)` -- the whole point of this field (per PLAN_4.md) is
+    just `len(cves)` -- the whole point of this field (per Phase 4 notes) is
     to let a later audit notice "NVD said there were 40 but we only
     parsed/cached N", which is impossible if this is definitionally
     always equal to the parsed list's length.

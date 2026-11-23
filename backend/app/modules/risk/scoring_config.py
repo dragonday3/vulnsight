@@ -1,6 +1,6 @@
 # Tunable constants for VRPS risk scoring (Phase 7). Named, documented, and
 # hardcoded for now -- no DB-backed or admin-editable override exists yet
-# (PLAN_7.md architecture decision #2). First-pass judgment calls, not tuned
+# (Phase 7 notes architecture decision #2). First-pass judgment calls, not tuned
 # against real-world scan data.
 
 # CVSS is 0-10; every contribution in this module is normalized to the same
@@ -26,7 +26,7 @@ SEVERITY_FALLBACK_WEIGHT: dict[str, float] = {
 # misconfiguration is a weaker, more heuristic signal (e.g. a missing
 # security header is bad practice, not a proven exploit path). This is
 # this phase's single most consequential, least-validated judgment call
-# -- flag for revisit in CLAUDE.md, same framing as confidence_score's
+# -- flag for revisit in dev notes, same framing as confidence_score's
 # bands and Phase 6's SENSITIVE_PORTS table.
 MISCONFIG_RELATIVE_WEIGHT = 0.6
 

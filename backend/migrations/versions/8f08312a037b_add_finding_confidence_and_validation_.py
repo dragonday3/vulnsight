@@ -64,7 +64,7 @@ def _compute_confidence_from_evidence(evidence: dict) -> float:
 def upgrade() -> None:
     """Upgrade schema."""
     # Add nullable-with-no-default first -- there is no meaningful
-    # default for pre-existing rows (see PLAN_5.md #2), so every
+    # default for pre-existing rows (see Phase 5 notes #2), so every
     # pre-existing row gets a real, formula-derived value via the
     # one-time backfill below before the column is tightened to NOT
     # NULL.
@@ -73,7 +73,7 @@ def upgrade() -> None:
     # One-time backfill for any pre-existing rows, computed from each
     # row's already-persisted Service.evidence via the same formula
     # confidence.py uses going forward -- NOT an ongoing recompute
-    # mechanism (see PLAN_5.md's "no re-computation" scope limit); this
+    # mechanism (see Phase 5 notes' "no re-computation" scope limit); this
     # runs exactly once, now, because the column is new, not because
     # Service.evidence ever changed after the fact. A no-op over an
     # empty result set is fine and expected on a fresh database.

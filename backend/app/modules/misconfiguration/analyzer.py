@@ -32,7 +32,7 @@ from app.modules.misconfiguration.tls_inspector import (
 logger = logging.getLogger(__name__)
 
 # Deliberately independent of fingerprinting/http_prober.py's own TLS
-# heuristic -- see PLAN_6.md's no-touch-other-modules rule / CLAUDE.md's
+# heuristic -- see Phase 6 notes' no-touch-other-modules rule / dev notes'
 # discovery/fingerprinting separation principle. Case-insensitive,
 # None-safe: a Service with no service_name at all (e.g. a bare
 # nmap-discovered port with no -sV match) must never raise here.
