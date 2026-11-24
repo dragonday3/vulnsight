@@ -1,0 +1,37 @@
+# VulnSight benchmark targets: deliberately vulnerable vulhub images, each
+# with a CVE documented by its vulhub environment (see expected.json).
+#
+# - Images are pinned by digest (Docker Hub tag digests fetched 2026-11-24),
+#   so a re-run scans exactly the same software.
+# - No host ports are published: targets are only reachable from inside the
+#   app's own compose network, which the VulnSight worker is on. Nothing here
+#   is exposed to the LAN, and no scan leaves the Docker host.
+#
+# Start the app first (it creates the `vulnsight_default` network), then:
+#   docker compose -f benchmarks/docker-compose.bench.yml up -d
+name: vulnsight-bench
+
+services:
+  bench-httpd:
+    image: vulhub/httpd:2.4.49@sha256:a6c32432b1ed40818488e238769e962a4151ef3b74b54416d9d5d396ba8cab5f
+  bench-tomcat:
+    image: vulhub/tomcat:8.5.19@sha256:dc424beb9f2ebc24cade77046b1ee8409f23b26faebf5fe3d1ce8b3ce1211b91
+  bench-tomcat9:
+    image: vulhub/tomcat:9.0.30@sha256:568d9a8b3206501bfe2b15980287013cadabf45c33db54987736b4ec05502c14
+  bench-nginx:
+    image: vulhub/nginx:1.13.2@sha256:49780399caf3744de3e728db1c693bf54ec11d78f9a043df7b25fa935287ffef
+  bench-es:
+    image: vulhub/elasticsearch:1.4.2@sha256:df18e56d6ca11e2f1f81a66f1c4e1b3ff50fe9ede7fcc461be652f06ec7486fa
+  bench-es11:
+    image: vulhub/elasticsearch:1.1.1@sha256:e74fba3e4ab74523003fcb4782d193f08e0fb8855894f427038c104750b67166
+  bench-jetty:
+    image: vulhub/jetty:9.4.37@sha256:e9a3cadf5dd945780548065f76c4801dff5076c2357a1d3ea7e5d5c1f90664bd
+  bench-mysql:
+    image: vulhub/mysql:5.5.23@sha256:5bbb7570f16526da1de61e84487daade5614eb2a9bfd28a87bcf4d6795b94463
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+
+networks:
+  default:
+    name: vulnsight_default
+    external: true

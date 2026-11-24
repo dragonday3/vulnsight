@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "fixed_at": "2026-11-24",
+  "fixed_before_first_scan": true,
+  "ground_truth_source": "The CVE each target's vulhub environment documents (github.com/vulhub/vulhub, master, <vulhub_env>/docker-compose.yml uses this image tag).",
+  "scanner": "nmap",
+  "targets": [
+    {
+      "host": "bench-httpd",
+      "image": "vulhub/httpd:2.4.49@sha256:a6c32432b1ed40818488e238769e962a4151ef3b74b54416d9d5d396ba8cab5f",
+      "port": 80,
+      "product": "Apache httpd",
+      "version": "2.4.49",
+      "documented_cves": ["CVE-2021-41773"],
+      "vulhub_env": "httpd/CVE-2021-41773",
+      "note": "The vulhub env builds on this image to enable the exploitable config; the benchmark scans the published base image unmodified (version detection does not depend on that config)."
+    },
+    {
+      "host": "bench-tomcat",
+      "image": "vulhub/tomcat:8.5.19@sha256:dc424beb9f2ebc24cade77046b1ee8409f23b26faebf5fe3d1ce8b3ce1211b91",
+      "port": 8080,
+      "product": "Apache Tomcat",
+      "version": "8.5.19",
+      "documented_cves": ["CVE-2017-12615"],
+      "vulhub_env": "tomcat/CVE-2017-12615",
+      "note": "The vulhub env builds on this image to enable HTTP PUT (readonly=false); the benchmark scans the published base image unmodified."
+    },
+    {
+      "host": "bench-tomcat9",
+      "image": "vulhub/tomcat:9.0.30@sha256:568d9a8b3206501bfe2b15980287013cadabf45c33db54987736b4ec05502c14",
+      "port": 8080,
+      "product": "Apache Tomcat",
+      "version": "9.0.30",
+      "documented_cves": ["CVE-2020-1938"],
+      "vulhub_env": "tomcat/CVE-2020-1938"
+    },
+    {
+      "host": "bench-nginx",
+      "image": "vulhub/nginx:1.13.2@sha256:49780399caf3744de3e728db1c693bf54ec11d78f9a043df7b25fa935287ffef",
+      "port": 80,
+      "product": "nginx",
+      "version": "1.13.2",
+      "documented_cves": ["CVE-2017-7529"],
+      "vulhub_env": "nginx/CVE-2017-7529",
+      "note": "The vulhub env mounts a config listening on 8080; the base image listens on 80."
+    },
+    {
+      "host": "bench-es",
+      "image": "vulhub/elasticsearch:1.4.2@sha256:df18e56d6ca11e2f1f81a66f1c4e1b3ff50fe9ede7fcc461be652f06ec7486fa",
+      "port": 9200,
+      "product": "Elasticsearch",
+      "version": "1.4.2",
+      "documented_cves": ["CVE-2015-1427"],
+      "vulhub_env": "elasticsearch/CVE-2015-1427"
+    },
+    {
+      "host": "bench-es11",
+      "image": "vulhub/elasticsearch:1.1.1@sha256:e74fba3e4ab74523003fcb4782d193f08e0fb8855894f427038c104750b67166",
+      "port": 9200,
+      "product": "Elasticsearch",
+      "version": "1.1.1",
+      "documented_cves": ["CVE-2014-3120"],
+      "vulhub_env": "elasticsearch/CVE-2014-3120"
+    },
+    {
+      "host": "bench-jetty",
+      "image": "vulhub/jetty:9.4.37@sha256:e9a3cadf5dd945780548065f76c4801dff5076c2357a1d3ea7e5d5c1f90664bd",
+      "port": 8080,
+      "product": "Eclipse Jetty",
+      "version": "9.4.37",
+      "documented_cves": ["CVE-2021-28164"],
+      "vulhub_env": "jetty/CVE-2021-28164"
+    },
+    {
+      "host": "bench-mysql",
+      "image": "vulhub/mysql:5.5.23@sha256:5bbb7570f16526da1de61e84487daade5614eb2a9bfd28a87bcf4d6795b94463",
+      "port": 3306,
+      "product": "MySQL",
+      "version": "5.5.23",
+      "documented_cves": ["CVE-2012-2122"],
+      "vulhub_env": "mysql/CVE-2012-2122"
+    }
+  ],
+  "pre_registered_risks": [
+    "nginx: nmap emits the CPE vendor 'igor_sysoev', NVD indexes nginx under 'f5' / 'nginx'; a miss is likely.",
+    "jetty: nmap's version string (e.g. 9.4.37.v20210219) may not match NVD's CPE version form; a miss is possible.",
+    "mysql: nmap emits vendor 'mysql', newer NVD entries use 'oracle'; partial or full miss is possible."
+  ],
+  "selection_changes_before_first_scan": [
+    "couchdb 2.1.0 (CVE-2017-12635) was dropped: its port 5984 is not in nmap's top-1000, and VulnSight's nmap path only scans the top-1000. Replaced with mysql 5.5.23 (port 3306, in top-1000). Decided from a port-list check, not from any scan result."
+  ],
+  "excluded": [
+    "samba: nmap reports a version range ('3.X - 4.X'), not an exact version.",
+    "phpmyadmin: its version is not visible to nmap -sV.",
+    "php 8.1 backdoor: no CVE assigned.",
+    "Metasploitable 2: not in the user's chosen scope for this phase (vulhub only)."
+  ]
+}
