@@ -445,3 +445,26 @@ def test_compute_confidence_called_once_per_service_not_once_per_finding(
 
     findings = db.execute(select(Finding).where(Finding.service_id == service.id)).scalars().all()
     assert len(findings) == 3
+
+
+def test_renamed_vendor_cpe_is_also_looked_up_under_nvd_alias(
+    db: Session, redis_client: redis.Redis
+) -> None:
+    """nmap's `igor_sysoev:nginx` must also be queried as NVD's `f5:nginx`
+    (Phase 9 benchmark miss). Findings from both lookups persist with their
+    own matched_cpe; the same CVE from both is left for the downstream
+    per-service dedup, not dropped here.
+    """
+    service = _make_service(db, evidence={"cpe": ["cpe:/a:igor_sysoev:nginx:1.13.2"]})
+    nmap_cpe = "cpe:2.3:a:igor_sysoev:nginx:1.13.2:*:*:*:*:*:*:*"
+    nvd_cpe = "cpe:2.3:a:f5:nginx:1.13.2:*:*:*:*:*:*:*"
+    results = {nmap_cpe: _fetch_result(), nvd_cpe: _fetch_result("CVE-2017-7529")}
+
+    with patch.object(
+        nvd_client, "fetch_cves_for_cpe", side_effect=lambda cpe, _r: results[cpe]
+    ) as mock_fetch:
+        correlate_services(db, redis_client, [service])
+
+    assert [c.args[0] for c in mock_fetch.call_args_list] == [nmap_cpe, nvd_cpe]
+    findings = db.execute(select(Finding)).scalars().all()
+    assert [(f.cve_id, f.matched_cpe) for f in findings] == [("CVE-2017-7529", nvd_cpe)]

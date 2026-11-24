@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.modules.vulnerability.cpe_utils import to_cpe23
+from app.modules.vulnerability.cpe_utils import nvd_aliases, to_cpe23
 
 
 @pytest.mark.parametrize(
@@ -53,3 +53,38 @@ def test_to_cpe23_converts_valid_input(cpe22: str, expected_cpe23: str) -> None:
 )
 def test_to_cpe23_returns_none_for_malformed_input(cpe22: str) -> None:
     assert to_cpe23(cpe22) is None
+
+
+@pytest.mark.parametrize(
+    ("cpe23", "expected"),
+    [
+        (
+            "cpe:2.3:a:igor_sysoev:nginx:1.13.2:*:*:*:*:*:*:*",
+            ["cpe:2.3:a:f5:nginx:1.13.2:*:*:*:*:*:*:*"],
+        ),
+        (
+            "cpe:2.3:a:elasticsearch:elasticsearch:1.4.2:*:*:*:*:*:*:*",
+            ["cpe:2.3:a:elastic:elasticsearch:1.4.2:*:*:*:*:*:*:*"],
+        ),
+        # Jetty: vendor rename plus nmap's "X.vYYYYMMDD" split into version/update.
+        (
+            "cpe:2.3:a:mortbay:jetty:9.4.37.v20210219:*:*:*:*:*:*:*",
+            ["cpe:2.3:a:eclipse:jetty:9.4.37:20210219:*:*:*:*:*:*"],
+        ),
+        # Jetty version without the date suffix: vendor rename only.
+        (
+            "cpe:2.3:a:mortbay:jetty:9.4.37:*:*:*:*:*:*:*",
+            ["cpe:2.3:a:eclipse:jetty:9.4.37:*:*:*:*:*:*:*"],
+        ),
+        (
+            "cpe:2.3:a:mysql:mysql:5.5.23:*:*:*:*:*:*:*",
+            ["cpe:2.3:a:oracle:mysql:5.5.23:*:*:*:*:*:*:*"],
+        ),
+        # Not in the alias table, or malformed: no aliases.
+        ("cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*", []),
+        ("cpe:2.3:a:nginx:nginx:1.24.0:*:*:*:*:*:*:*", []),
+        ("not-a-cpe", []),
+    ],
+)
+def test_nvd_aliases(cpe23: str, expected: list[str]) -> None:
+    assert nvd_aliases(cpe23) == expected
