@@ -53,6 +53,18 @@ def test_closed_port_is_reported_not_crashed():
     assert summary([m])["mean_rank_vulnsight"] is None
 
 
+def test_lookup_names_include_aliases_skip_versionless():
+    from run_benchmark import lookup_names
+    assets = [{"services": [
+        {"evidence": {"cpe": ["cpe:/a:igor_sysoev:nginx:1.13.2", "cpe:/o:linux:linux_kernel"]}},
+        {"evidence": None},
+    ]}]
+    assert lookup_names(assets) == {
+        "cpe:2.3:a:igor_sysoev:nginx:1.13.2:*:*:*:*:*:*:*",
+        "cpe:2.3:a:f5:nginx:1.13.2:*:*:*:*:*:*:*",
+    }
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

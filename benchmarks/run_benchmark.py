@@ -30,7 +30,10 @@ from types import SimpleNamespace
 
 sys.path.insert(0, "/app")  # backend code inside the backend image
 
+from app.db.session import SessionLocal  # noqa: E402
 from app.modules.risk.scoring import score_finding_contribution  # noqa: E402
+from app.modules.vulnerability import cache, cpe_utils  # noqa: E402
+from app.modules.vulnerability.correlator import _is_versionless_cpe23  # noqa: E402
 from app.modules.vulnerability.finding_dedup import dedupe_findings_by_cve  # noqa: E402
 
 API = os.environ.get("VULNSIGHT_API", "http://backend:8000/api/v1")
@@ -121,6 +124,27 @@ def target_metrics(expected: dict, assets: list[dict]) -> dict:
     }
 
 
+def lookup_names(assets: list[dict]) -> set[str]:
+    """Every CPE 2.3 name the correlator would query for these assets."""
+    names: set[str] = set()
+    for a in assets:
+        for s in a.get("services", []):
+            for cpe22 in (s.get("evidence") or {}).get("cpe", []):
+                cpe23 = cpe_utils.to_cpe23(cpe22)
+                if cpe23 and not _is_versionless_cpe23(cpe23):
+                    names |= {cpe23, *cpe_utils.nvd_aliases(cpe23)}
+    return names
+
+
+def failed_lookups(assets: list[dict]) -> list[str]:
+    """A failed NVD lookup is never cached (cache.store refuses failures),
+    so a name with no cve_cache row after the scan is a failed lookup. The
+    API can't tell "no CVEs" from "lookup failed" (a known gap); this can.
+    """
+    with SessionLocal() as db:
+        return sorted(n for n in lookup_names(assets) if cache.get_cached(db, n) is None)
+
+
 def summary(targets: list[dict]) -> dict:
     docs = [d for t in targets for d in t["documented"]]
     hit = [d for d in docs if d["detected"]]
@@ -137,6 +161,7 @@ def summary(targets: list[dict]) -> dict:
         "mean_rank_cvss_only": mean([d["rank_cvss"] for d in hit]),
         "mean_rank_vulnsight": mean([d["rank_vulnsight"] for d in hit]),
         "cves_matched_total": sum(t["cves_matched"] for t in targets),
+        "targets_with_failed_lookups": sum(1 for t in targets if t.get("failed_lookups")),
     }
 
 
@@ -193,7 +218,7 @@ def run() -> None:
         m = target_metrics(t, assets)
         m.update(scan_id=scan["id"], scan_status=scan["status"],
                  scan_risk_score=scan["risk_score"], scan_risk_tier=scan["risk_tier"],
-                 error_message=scan["error_message"])
+                 error_message=scan["error_message"], failed_lookups=failed_lookups(assets))
         rows.append(m)
 
     result = {
@@ -228,14 +253,16 @@ def render_md(r: dict) -> str:
         f"(recall {s['recall']})",
         f"- Targets fingerprinted with a CPE: {s['fingerprinted_with_cpe']}/{s['targets']}",
         f"- Total version-applicable CVEs matched: {s['cves_matched_total']}",
+        f"- Targets with at least one failed NVD lookup: {s['targets_with_failed_lookups']}"
+        " (their zero/low counts are not a clean result)",
         f"- Mean rank of detected documented CVEs: CVSS-only {s['mean_rank_cvss_only']}, "
         f"VulnSight {s['mean_rank_vulnsight']}",
         "",
         "## Per target",
         "",
         "| Target | nmap product/version | CPE | Documented CVE | Detected | Rank CVSS-only | "
-        "Rank VulnSight | CVEs matched | Misconfigs |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "Rank VulnSight | CVEs matched | Failed NVD lookups | Misconfigs |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for t in r["targets"]:
         fp = t["fingerprint"]
@@ -245,6 +272,7 @@ def render_md(r: dict) -> str:
                 f"{', '.join(fp['cpe']) or '-'} | {d['cve']} | {'yes' if d['detected'] else 'no'} | "
                 f"{d.get('rank_cvss') or '-'}/{d.get('of') or '-'} | "
                 f"{d.get('rank_vulnsight') or '-'}/{d.get('of') or '-'} | {t['cves_matched']} | "
+                f"{len(t.get('failed_lookups', [])) or '-'} | "
                 f"{', '.join(t['misconfigurations']) or '-'} |"
             )
     lines += ["", "## Manual applicability audit (top 10 per target, by VulnSight rank)", "",
