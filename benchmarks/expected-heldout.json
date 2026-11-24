@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "fixed_at": "2026-11-24",
+  "fixed_before_first_scan": true,
+  "purpose": "Phase 10 held-out targets: never scanned or audited before. Used for the out-of-sample applicability metric (M2-heldout) and a separate recall row. See benchmarks/phase10-preregistration.md.",
+  "ground_truth_source": "The CVE each target's vulhub environment documents (github.com/vulhub/vulhub, master, <vulhub_env>/docker-compose.yml uses this image tag).",
+  "scanner": "nmap",
+  "targets": [
+    {
+      "host": "bench-nginx142",
+      "image": "vulhub/nginx:1.4.2@sha256:bd7f0ea45d504a43caf198ea36576d64ce091a33793abcf24086eec9f232f266",
+      "port": 80,
+      "product": "nginx",
+      "version": "1.4.2",
+      "documented_cves": ["CVE-2013-4547"],
+      "vulhub_env": "nginx/CVE-2013-4547",
+      "note": "The vulhub env pairs this with php-fpm; the benchmark scans nginx alone."
+    },
+    {
+      "host": "bench-php",
+      "image": "vulhub/php:5.4.1-cgi@sha256:dc9ef2d0cafcf9583b682e0cbfdbd75ecf9d4689a05c7c30804273f2eecf5c53",
+      "port": 80,
+      "product": "PHP (CGI, behind Apache httpd)",
+      "version": "5.4.1",
+      "documented_cves": ["CVE-2012-1823"],
+      "vulhub_env": "php/CVE-2012-1823"
+    },
+    {
+      "host": "bench-postgres",
+      "image": "vulhub/postgres:9.6.7@sha256:66c0bb2ba0398c311bcca0d6b9373c396decbb4eb6286435659b15ec334b4315",
+      "port": 5432,
+      "product": "PostgreSQL",
+      "version": "9.6.7",
+      "documented_cves": ["CVE-2018-1058"],
+      "vulhub_env": "postgres/CVE-2018-1058"
+    }
+  ],
+  "pre_registered_risks": [
+    "postgres: nmap -sV often reports only a version range for PostgreSQL, which yields no exact CPE; a miss or no correlation is possible.",
+    "php: the PHP version may only appear via the HTTP server banner/X-Powered-By; nmap may emit only an Apache httpd CPE.",
+    "Port membership in nmap's top-1000 (80, 5432) is checked before the first scan without -sV, as in Phase 9."
+  ]
+}

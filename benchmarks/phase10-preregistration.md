@@ -48,6 +48,56 @@ unchanged.
 - Results are reported separately for "previously audited" and "newly
   surfaced" CVEs.
 
+## Amendment 1 (2026-11-24, still before any Phase 10 code or run)
+
+This amendment follows a review of the original pre-registration. It is
+committed separately, so the original text above stays as it was.
+
+**Units.** `severity` is on a 0–100 scale: CVSS 0–10 × 10, or the
+fallback weight, which is already 0–100. `100*exploit` is also 0–100.
+The two terms are equally weighted on the same scale.
+
+**M1 framing.** vulhub environments are chosen *because* their CVEs are
+famous and exploited. A KEV/EPSS weighting will push them up almost by
+construction. If M1 holds, it shows the ordering does what KEV and EPSS
+are meant to do. It is **not** evidence of general ranking skill.
+
+**M2, replaced with a stricter rule** (8 original targets, in-sample):
+- Report the A/N/U counts in the VulnSight top 10 per target and in
+  total, next to the baseline 16/48/16.
+- A **claim** of improvement is made only if both hold:
+  - N ≤ 36/80, a cut of at least 25%;
+  - A ≥ 16, so the applicable count does not fall.
+- **U** (unclear) is reported separately and never counted as an
+  improvement.
+- The result is also reported with every newly surfaced U counted as N,
+  the worst case.
+
+**M2-heldout (new, out-of-sample).** This runs on 3 new targets that were
+never scanned or audited: `benchmarks/expected-heldout.json`, committed
+with this amendment.
+- **Blind labelling.** After the run, the harness writes a labelling sheet
+  for each held-out target. The sheet holds the union of that target's
+  CVSS-only top 10 and VulnSight top 10. It is sorted by CVE id and shows
+  only the CVE id and description: no score, rank, flag, or which list it
+  came from.
+- Labels are A/N/U, using the same rubric with container config checked
+  in place. The labelled sheet is committed *before* the held-out metric
+  is computed.
+- **Metric**: the N count in the VulnSight top 10 vs the CVSS-only top 10,
+  for the same targets in the same run.
+- **Claim** only if both hold:
+  - VulnSight N ≤ 0.75 × CVSS-only N;
+  - VulnSight A ≥ CVSS-only A.
+- Documented-CVE recall on the held-out targets is reported as its own
+  row. No claim is made for it.
+
+**M3, extended.** Also report:
+- the **flag rate**: the share of all matched CVEs, per target and in
+  total, that get `unverified_prerequisite`;
+- the number of rule features and regexes in the applicability table at
+  the run's commit.
+
 ## Disclosures
 
 - **KEV/EPSS values were seen first.** The KEV membership and EPSS
