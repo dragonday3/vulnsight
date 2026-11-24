@@ -277,6 +277,11 @@ def run() -> None:
         "description": "Phase 9 benchmark: vulhub targets on the internal compose network",
     })
 
+    # One scan at a time (since the first Phase 10 run): with ~11 targets
+    # queued together, ~20 cold NVD lookups compete for NVD's keyless
+    # 5-per-30s limit and the last ones time out, invalidating the run. A
+    # real user scanning one host never hits that; the benchmark shouldn't
+    # either. Changes only harness scheduling, not any app code or metric.
     scans = {}
     for t in expected["targets"]:
         target = api("POST", f"/projects/{project['id']}/targets", {
@@ -287,18 +292,15 @@ def run() -> None:
                                       "config": {"scanner": "nmap"}})
         scans[t["host"]] = scan["id"]
         print(f"queued {t['host']}: scan {scan['id']}", flush=True)
-
-    deadline = time.time() + SCAN_TIMEOUT_S
-    pending = set(scans)
-    while pending and time.time() < deadline:
-        for host in sorted(pending):
-            st = api("GET", f"/scans/{scans[host]}/status")["status"]
+        deadline = time.time() + SCAN_TIMEOUT_S
+        while True:
+            st = api("GET", f"/scans/{scan['id']}/status")["status"]
             if st in TERMINAL:
-                pending.discard(host)
-                print(f"{host}: {st}", flush=True)
-        time.sleep(10)
-    if pending:
-        raise SystemExit(f"timed out waiting for: {sorted(pending)}")
+                print(f"{t['host']}: {st}", flush=True)
+                break
+            if time.time() > deadline:
+                raise SystemExit(f"timed out waiting for {t['host']}")
+            time.sleep(5)
 
     rows, raw = [], {}
     for t in expected["targets"]:
