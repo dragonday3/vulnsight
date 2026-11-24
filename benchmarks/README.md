@@ -71,7 +71,7 @@ Results land in `benchmarks/results/`. See `results/README.md` for every
 recorded run.
 
 Without an NVD API key the limit is 5 requests per 30 s, shared by all
-scans. A cold-cache run of all 8 targets makes about 16 lookups, aliases
-included. The last ones can wait close to the rate limiter's 60 s
+scans. A cold-cache run of all 8 targets makes 13 CPE lookups, aliases
+included (about 15 NVD requests with MySQL's extra pages). The last ones can wait close to the rate limiter's 60 s
 maximum, so a run can come out INVALID from rate limiting alone. If it
 does, re-run it, or set `NVD_API_KEY`.

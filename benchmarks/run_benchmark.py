@@ -279,7 +279,7 @@ def run() -> None:
     }
     out = HERE / "results"
     out.mkdir(exist_ok=True)
-    stem = started.strftime("%Y-%m-%d")
+    stem = started.strftime("%Y-%m-%d-%H%M")  # same-day runs must not overwrite
     (out / f"{stem}.json").write_text(json.dumps(result, indent=2, default=str))
     (out / f"{stem}.md").write_text(render_md(result))
     print(json.dumps(result["summary"], indent=2))
@@ -303,8 +303,10 @@ def render_md(r: dict) -> str:
         "## Summary",
         "",
         ("**Run valid**: every CVE lookup succeeded and was stored." if s["valid"] else
-         "**RUN INVALID**: at least one CVE lookup failed or was not stored (see the "
-         "Failed NVD lookups column). Recall below is not a measurement."),
+         "**RUN INVALID**: for at least one target, a CVE lookup failed, was "
+         "truncated, stale or not stored (Failed NVD lookups column), or the scan "
+         "didn't complete, its cve_lookups_failed wasn't 0, or the target port was "
+         "closed (see the JSON). Recall below is not a measurement."),
         "",
         f"- Documented CVEs detected: **{s['documented_detected']}/{s['documented_total']}** "
         f"(recall {s['recall']})",
