@@ -1,6 +1,6 @@
 # VulnSight
 
-[![CI](https://github.com/dragonday3/vulnerablescanner/actions/workflows/ci.yml/badge.svg)](https://github.com/dragonday3/vulnerablescanner/actions/workflows/ci.yml)
+[![CI](https://github.com/dragonday3/vulnsight/actions/workflows/ci.yml/badge.svg)](https://github.com/dragonday3/vulnsight/actions/workflows/ci.yml)
 
 **Evidence-Based Vulnerability Assessment & Risk Prioritization Platform.**
 
