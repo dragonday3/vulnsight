@@ -41,7 +41,7 @@ from app.modules.vulnerability.finding_dedup import dedupe_findings_by_cve  # no
 API = os.environ.get("VULNSIGHT_API", "http://backend:8000/api/v1")
 HERE = Path(__file__).resolve().parent
 TERMINAL = {"completed", "failed", "cancelled"}
-SCAN_TIMEOUT_S = 1800  # NVD keyless limit is 5 req/30s, shared by all scans
+SCAN_TIMEOUT_S = 1800  # per scan (scans run one at a time)
 TOP_N_AUDIT = 10
 
 

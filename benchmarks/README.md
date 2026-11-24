@@ -81,8 +81,8 @@ recorded run.
 Scans run one at a time, so a cold-cache run stays within NVD's rate
 limit.
 
-Without an NVD API key the limit is 5 requests per 30 s, shared by all
-scans. A cold-cache run of all 8 targets makes 13 CPE lookups, aliases
-included (about 15 NVD requests with MySQL's extra pages). The last ones can wait close to the rate limiter's 60 s
-maximum, so a run can come out INVALID from rate limiting alone. If it
-does, re-run it, or set `NVD_API_KEY`.
+Without an NVD API key, NVD allows 5 requests per 30 s. With scans run
+one at a time, a lookup waits at most about 30 s for a rate-limit slot.
+The remaining risk is NVD itself answering 429, which happened once in
+Phase 9 and once in Phase 10's first run. That marks the run INVALID;
+re-run it, or set `NVD_API_KEY`.

@@ -101,8 +101,12 @@ def score(run: dict, known: dict, new: dict) -> tuple[str, dict]:
                 *hrows,
                 f"| **Total** | **{tv['A']}/{tv['N']}/{tv['U']}** | "
                 f"**{tc['A']}/{tc['N']}/{tc['U']}** |", "",
-                "Claim criterion (VulnSight N <= 0.75 x CVSS-only N, and A not lower): "
-                f"**{'met' if m2h else 'not met'}**.", ""]
+                "Claim criterion (VulnSight N <= 0.75 x CVSS-only N, and A not lower; "
+                "additionally requires CVSS-only N > 0, stricter than pre-registered): "
+                f"**{'met' if m2h else 'not met'}**.",
+                "CVSS ties at the CVSS-only top-10 cut-off broken by CVE id; tied CVEs left out: "
+                + (", ".join(f"{t['host']} {t.get('cvss_cutoff_ties_excluded', 0)}" for t in held)
+                   or "none") + ".", ""]
         if "?" in hv + hc:
             out.append("**Warning: some held-out top-10 CVEs have no label.**\n")
 

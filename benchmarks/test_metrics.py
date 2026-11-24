@@ -132,6 +132,31 @@ def test_score_m2_claim_and_worst_case():
     assert "Worst case (newly surfaced U counted as N): A 5, N 5, U 0" in text
 
 
+def test_score_guards_invalid_run_unlabelled_and_either_end_harm():
+    from score_labels import score
+    top = [{"cve": f"CVE-{i}"} for i in range(10)]
+    base = {
+        "run_started_utc": "t", "vulnsight_commit": "c",
+        "summary": {"valid": True, "mean_rank_cvss_only": [3, 9], "mean_rank_vulnsight": [2, 4],
+                    "findings_flagged": 0, "findings_total": 10,
+                    "documented_detected": 1, "documented_total": 1},
+        "targets": [{"host": "h", "top_by_vulnsight": top, "findings_flagged": 0,
+                     "findings_total": 10,
+                     # best rank got worse (1 -> 2), worst rank did not (5 -> 5)
+                     "documented": [{"cve": "CVE-0", "detected": True, "rank_cvss": [1, 5],
+                                     "rank_vulnsight": [2, 5]}]}],
+    }
+    all_a = {"h": {f"CVE-{i}": "A" for i in range(10)}}
+    text, res = score(base, {}, {"h": {**all_a["h"]}})
+    assert "rank 2-5 vs CVSS-only 1-5" in text  # either end worse counts as harm
+    invalid = {**base, "summary": {**base["summary"], "valid": False}}
+    _, res = score(invalid, {}, all_a)
+    assert not res["m1"] and not res["m2"]
+    one_missing = {"h": {f"CVE-{i}": "A" for i in range(9)}}  # CVE-9 unlabelled
+    _, res = score(base, {}, one_missing)
+    assert not res["m2"]
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

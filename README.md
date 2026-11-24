@@ -176,9 +176,23 @@ reports them verbatim, including what failed:
   KEV/EPSS values were seen before the weights were fixed. It shows the
   ordering does what KEV/EPSS is meant to do, not general ranking skill.
 - The applicability rules cut not-applicable matches on the targets they
-  were written from. On the held-out targets they didn't pass the
-  pre-registered bar. Out of sample, the keyword rules help only a
-  little.
+  were written from. On the held-out targets they showed **no measurable
+  improvement**:
+  - not applicable fell from 24 to 20;
+  - unclear rose from 1 to 6;
+  - applicable fell from 5 to 4.
+- The CVSS-only top 10 breaks CVSS ties at the cut-off by CVE id, so that
+  baseline list is one choice among equals. Tied CVEs left out per target:
+  - php 9, tomcat9 6, httpd 5;
+  - mysql 2;
+  - tomcat 1, es 1.
+- The held-out claim also required the CVSS-only baseline to have at
+  least one not-applicable CVE. That condition is stricter than the
+  pre-registration, and it made no difference here (baseline N was 24).
+- Only the labeller was blind. The container-facts file it worked from
+  was written by the same session that built the rules, after seeing the
+  first (invalid) Phase 10 run's top-10 lists. Its Jetty section was
+  added after the first labelling pass came back all-unclear for Jetty.
 - Only TLS is observable today. HTTP/2 and modules never are, so a
   flagged CVE means "not seen", not "absent".
 - The first Phase 10 run was INVALID: concurrent scans hit NVD rate
