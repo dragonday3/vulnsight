@@ -165,7 +165,7 @@ reports them verbatim, including what failed:
 | Metric (pre-registered) | Result | Criterion |
 |---|---|---|
 | M1: rank of the documented CVEs | VulnSight mean 1.3–1.5 vs CVSS-only 3.5–9.3 | **met** |
-| M2: not-applicable CVEs in each top 10, original 8 targets (in-sample) | 25 of 80, down from 49; applicable up from 15 to 29 | **met** (N ≤ 36 and A ≥ 16). **Not met** under the pre-registered worst case (unclear counted as not applicable: 38) |
+| M2: not-applicable CVEs in each top 10, original 8 targets (in-sample) | 25 of 80, down from 49; applicable up from 15 to 29 | **met** (N ≤ 36 and A ≥ 16). **Not met** under the pre-registered worst case (newly surfaced unclear counted as not applicable: 38) |
 | M2-heldout: same, on the 3 never-audited targets (out-of-sample) | VulnSight 20 not applicable, 4 applicable vs CVSS-only 24 and 5 | **not met** (needed ≤ 18 with applicable not lower) |
 | M3: harm | No documented CVE flagged or ranked worse; 135 of 726 matches flagged (21 rule features) | reported |
 | M4: recall | 6 of 8 kept; held-out 2 of 3 (php's CGI version isn't visible to Nmap) | **met** |
