@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -67,6 +67,12 @@ class Scan(Base):
     # plain-string-not-enum convention as Finding.severity/
     # Misconfiguration.severity.
     risk_tier: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Set once CORRELATING finishes (NULL before that, or for older scans):
+    # distinct CPE lookups tried, and how many did not produce findings
+    # (lookup or persist failure, or cap-skipped). failed > 0 means "no CVEs"
+    # on some services is NOT a clean result.
+    cve_lookups_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cve_lookups_failed: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     project: Mapped["Project"] = relationship(back_populates="scans")
     target: Mapped["Target"] = relationship()

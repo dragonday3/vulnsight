@@ -15,6 +15,8 @@ import type { Severity, ValidationState } from "./finding";
 export interface ReportSummary {
   target: { value: string; target_type: string };
   risk: { score: number | null; tier: Severity | null };
+  // Absent on reports generated before this field existed.
+  cve_correlation?: { lookups_total: number | null; lookups_failed: number | null };
   findings_summary: {
     total: number;
     by_severity: Record<Severity, number>;

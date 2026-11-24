@@ -137,6 +137,13 @@ export default async function ScanResultsPage({
             )}
           </div>
 
+          {scan.cve_lookups_failed != null && scan.cve_lookups_failed > 0 && (
+            <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              CVE correlation incomplete: {scan.cve_lookups_failed} of {scan.cve_lookups_total} CPE lookups failed. Services
+              showing no CVEs may not be clean.
+            </p>
+          )}
+
           <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
             <div>
               <dt className="text-xs uppercase tracking-wide text-zinc-500">Created</dt>

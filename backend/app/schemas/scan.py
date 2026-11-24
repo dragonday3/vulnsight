@@ -29,6 +29,9 @@ class ScanRead(BaseModel):
     # zero findings/misconfigs lands on 0.0/"NONE", never null again.
     risk_score: float | None
     risk_tier: str | None
+    # Null until CORRELATING finishes; failed > 0 = correlation incomplete.
+    cve_lookups_total: int | None
+    cve_lookups_failed: int | None
 
 
 class ScanStatusRead(BaseModel):

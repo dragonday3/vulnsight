@@ -28,7 +28,11 @@ from app.models.scan import Scan, ScanStatus
 from app.models.service import Service
 from app.models.target import Target, TargetType
 from app.modules.vulnerability import cache, confidence, nvd_client
-from app.modules.vulnerability.correlator import MAX_DISTINCT_CPES_PER_SCAN, correlate_services
+from app.modules.vulnerability.correlator import (
+    MAX_DISTINCT_CPES_PER_SCAN,
+    CorrelationOutcome,
+    correlate_services,
+)
 from app.modules.vulnerability.nvd_client import NvdFetchResult
 
 
@@ -493,3 +497,36 @@ def test_full_length_cvss_v4_vector_persists(db: Session, redis_client: redis.Re
     findings = db.execute(select(Finding).order_by(Finding.cve_id)).scalars().all()
     assert [f.cve_id for f in findings] == ["CVE-2017-7529", "CVE-2025-23419"]
     assert findings[1].cvss_vector == vector
+
+
+def test_outcome_counts_failed_lookups_and_failed_inserts(
+    db: Session, redis_client: redis.Redis
+) -> None:
+    """One CPE succeeds, one lookup fails (None), one raises while being
+    processed: 3 attempted, 2 failed. Only the first produces findings."""
+    ok = _make_service(db, evidence={"cpe": ["cpe:/a:a:a:1"]}, port=1)
+    lookup_fail = _make_service(db, evidence={"cpe": ["cpe:/a:b:b:1"]}, port=2)
+    boom = _make_service(db, evidence={"cpe": ["cpe:/a:c:c:1"]}, port=3)
+
+    def fake_fetch(cpe: str, _r: redis.Redis) -> NvdFetchResult | None:
+        if ":b:b:" in cpe:
+            return None
+        if ":c:c:" in cpe:
+            raise RuntimeError("insert-like failure")
+        return _fetch_result("CVE-2021-0001")
+
+    with patch.object(nvd_client, "fetch_cves_for_cpe", side_effect=fake_fetch):
+        outcome = correlate_services(db, redis_client, [ok, lookup_fail, boom])
+
+    assert outcome == CorrelationOutcome(attempted=3, failed=2)
+    assert [f.service_id for f in db.execute(select(Finding)).scalars()] == [ok.id]
+
+
+def test_outcome_counts_cap_skipped_cpes_as_failed(db: Session, redis_client: redis.Redis) -> None:
+    services = [
+        _make_service(db, evidence={"cpe": [f"cpe:/a:v:p{i}:1"]}, port=1000 + i)
+        for i in range(MAX_DISTINCT_CPES_PER_SCAN + 2)
+    ]
+    with patch.object(nvd_client, "fetch_cves_for_cpe", return_value=_fetch_result()):
+        outcome = correlate_services(db, redis_client, services)
+    assert outcome == CorrelationOutcome(attempted=MAX_DISTINCT_CPES_PER_SCAN + 2, failed=2)

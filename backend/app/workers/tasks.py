@@ -295,7 +295,10 @@ def run_scan_task(scan_id: str) -> None:
         db.commit()
         try:
             redis_client = redis.Redis.from_url(get_settings().REDIS_URL)
-            correlate_services(db, redis_client, services)
+            outcome = correlate_services(db, redis_client, services)
+            scan.cve_lookups_total = outcome.attempted
+            scan.cve_lookups_failed = outcome.failed
+            db.commit()
         except Exception:
             db.rollback()
             logger.exception("run_scan_task: scan %s vulnerability correlation failed", scan_id)

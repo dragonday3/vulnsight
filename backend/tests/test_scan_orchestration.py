@@ -35,6 +35,7 @@ from app.modules.discovery.interfaces import PortScanResult
 from app.modules.discovery.native_scanner import NativePortScanner
 from app.modules.discovery.nmap_scanner import NmapPortScanner
 from app.modules.fingerprinting.http_prober import HttpProbeResult
+from app.modules.vulnerability.correlator import CorrelationOutcome
 from app.workers import tasks as tasks_module
 
 
@@ -665,7 +666,9 @@ def test_correlating_is_reached_as_an_intermediate_status(
     adapter_cls = NativePortScanner if scanner_name == "native" else NmapPortScanner
     with (
         patch.object(adapter_cls, "scan", return_value=fake_results),
-        patch.object(tasks_module, "correlate_services") as mock_correlate,
+        patch.object(
+            tasks_module, "correlate_services", return_value=CorrelationOutcome()
+        ) as mock_correlate,
     ):
         tasks_module.run_scan_task(str(scan.id))
 
@@ -721,7 +724,9 @@ def test_correlate_services_called_with_full_services_list_regardless_of_adapter
     adapter_cls = NativePortScanner if scanner_name == "native" else NmapPortScanner
     with (
         patch.object(adapter_cls, "scan", return_value=fake_results),
-        patch.object(tasks_module, "correlate_services") as mock_correlate,
+        patch.object(
+            tasks_module, "correlate_services", return_value=CorrelationOutcome()
+        ) as mock_correlate,
     ):
         tasks_module.run_scan_task(str(scan.id))
 
@@ -729,6 +734,24 @@ def test_correlate_services_called_with_full_services_list_regardless_of_adapter
     call_args = mock_correlate.call_args.args
     passed_services = call_args[2]
     assert {s.port for s in passed_services} == {22, 80}
+
+
+def test_correlation_outcome_is_recorded_on_scan(db: Session, use_test_session: None) -> None:
+    """Failed CPE lookups must be visible on the scan, not only in logs:
+    a failure otherwise looks exactly like "no known CVEs"."""
+    scan = _make_scan(db, value="127.0.0.1", config={"scanner": "nmap"})
+    with (
+        patch.object(NmapPortScanner, "scan", return_value=[]),
+        patch.object(
+            tasks_module,
+            "correlate_services",
+            return_value=CorrelationOutcome(attempted=4, failed=1),
+        ),
+    ):
+        tasks_module.run_scan_task(str(scan.id))
+
+    db.refresh(scan)
+    assert (scan.cve_lookups_total, scan.cve_lookups_failed) == (4, 1)
 
 
 # --- Phase 6: ANALYZING transition + analyze_services wiring ---

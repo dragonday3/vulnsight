@@ -110,6 +110,11 @@ def build_report_summary(scan: Scan, assets: list[Asset]) -> dict:
         # str() on it would render "TargetType.IP" on Python 3.12.
         "target": {"value": scan.target.value, "target_type": scan.target.target_type.value},
         "risk": {"score": scan.risk_score, "tier": scan.risk_tier},
+        # lookups_failed > 0: some "no CVEs" results are failures, not clean.
+        "cve_correlation": {
+            "lookups_total": scan.cve_lookups_total,
+            "lookups_failed": scan.cve_lookups_failed,
+        },
         "findings_summary": {
             "total": findings_total,
             "by_severity": findings_by_severity,

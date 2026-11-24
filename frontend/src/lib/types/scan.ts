@@ -37,6 +37,10 @@ export interface ScanRead {
   // zero findings/misconfigs lands on 0.0/"NONE", never null again.
   risk_score: number | null;
   risk_tier: Severity | null;
+  // Null until CVE correlation runs. failed > 0: some CPE lookups produced
+  // no findings because they failed, so "no CVEs" there is not a clean result.
+  cve_lookups_total: number | null;
+  cve_lookups_failed: number | null;
 }
 
 export interface ScanCreate {

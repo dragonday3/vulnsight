@@ -101,10 +101,20 @@ def test_top_level_keys_and_target_serialization() -> None:
         "findings_summary",
         "misconfigurations_summary",
         "assets",
+        "cve_correlation",
     }
     # Plain lowercase strings, not the enum repr ("TargetType.DOMAIN").
     assert report["target"] == {"value": "example.com", "target_type": "domain"}
     assert report["risk"] == {"score": 42.0, "tier": "MEDIUM"}
+    # Not correlated: both null, never 0 (0 failed would claim "complete").
+    assert report["cve_correlation"] == {"lookups_total": None, "lookups_failed": None}
+
+
+def test_cve_correlation_counts_pass_through() -> None:
+    scan = _scan()
+    scan.cve_lookups_total, scan.cve_lookups_failed = 12, 3
+    report = build_report_summary(scan, [])
+    assert report["cve_correlation"] == {"lookups_total": 12, "lookups_failed": 3}
 
 
 def test_risk_none_passes_through_as_unscored() -> None:
