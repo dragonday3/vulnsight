@@ -6,6 +6,12 @@
 
 VulnSight discovers what is running on a host, matches it to known CVEs, checks for common misconfigurations, and ranks risk by how *confident* the evidence is, not just by CVSS. Every finding keeps the evidence behind it, and an analyst can confirm it or mark it a false positive.
 
+| Scan results | Report |
+|---|---|
+| <img src="docs/screenshots/scan-results.png" alt="Scan results page: Elasticsearch 1.4.2 with matched CVEs, confidence and validation controls" width="400"> | <img src="docs/screenshots/report.png" alt="Report page: overall risk, findings by severity and validation state, per-service CVEs and misconfigurations" width="400"> |
+
+*Both pages show the Elasticsearch 1.4.2 benchmark target (see [Benchmark](#benchmark)).*
+
 ## Features
 
 - **6-stage asynchronous scan pipeline** run by Celery workers: discovery → service fingerprinting → misconfiguration analysis → CVE correlation → risk analysis → report generation
@@ -21,7 +27,7 @@ VulnSight discovers what is running on a host, matches it to known CVEs, checks 
   - 12 sensitive exposed services (Telnet, FTP, SMB, RDP, VNC, Redis, MongoDB, Elasticsearch, Memcached, MySQL, PostgreSQL, Docker Engine API)
 - **Risk scoring:** per-asset and per-scan 0–100 score with CRITICAL / HIGH / MEDIUM / LOW tiers (see below); duplicate CVEs from overlapping CPE matches are counted once
 - **Reports:** per-scan summary (risk, findings by severity and validation state, per-asset/per-service CVEs and misconfigurations) via API and a report page
-- **Quality:** 259 automated tests; GitHub Actions CI runs pytest (with PostgreSQL, Redis and Nmap), ruff, black, mypy, and the Next.js lint/build
+- **Quality:** 271 automated tests; GitHub Actions CI runs pytest (with PostgreSQL, Redis and Nmap), ruff, black, mypy, and the Next.js lint/build
 
 ## Architecture
 
