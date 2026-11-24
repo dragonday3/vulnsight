@@ -34,7 +34,7 @@ sys.path.insert(0, "/app")  # backend code inside the backend image
 import app.db.base  # noqa: E402,F401  (registers every model so the ORM mappers resolve)
 from app.db.session import SessionLocal  # noqa: E402
 from app.modules.risk.scoring import score_finding_contribution  # noqa: E402
-from app.modules.vulnerability import cache, cpe_utils  # noqa: E402
+from app.modules.vulnerability import applicability, cache, cpe_utils  # noqa: E402
 from app.modules.vulnerability.correlator import _is_versionless_cpe23  # noqa: E402
 from app.modules.vulnerability.finding_dedup import dedupe_findings_by_cve  # noqa: E402
 
@@ -100,11 +100,16 @@ def target_metrics(expected: dict, assets: list[dict]) -> dict:
         for port, fs in per_service.items():
             rc, rv = rank_range(cve, fs, cvss_score_of), rank_range(cve, fs, vulnsight_score_of)
             if rv is not None and (best is None or rv < best["rank_vulnsight"]):
-                best = {"port": port, "rank_cvss": rc, "rank_vulnsight": rv, "of": len(fs)}
+                found = next(f for f in fs if f.cve_id == cve)
+                best = {"port": port, "rank_cvss": rc, "rank_vulnsight": rv, "of": len(fs),
+                        "unverified_prerequisite": getattr(found, "unverified_prerequisite", None)}
         documented.append({"cve": cve, "detected": best is not None, **(best or {})})
 
     main_fs = per_service.get(expected["port"], [])
     top = sorted(main_fs, key=audit_key)[:TOP_N_AUDIT]
+    # CVSS-only top N (CVE-id tiebreak at the cut-off, for a fixed list).
+    top_cvss = sorted(main_fs, key=lambda f: (-cvss_score_of(f), f.cve_id))[:TOP_N_AUDIT]
+    all_fs = [f for fs in per_service.values() for f in fs]
     return {
         "host": expected["host"],
         "port": expected["port"],
@@ -125,10 +130,18 @@ def target_metrics(expected: dict, assets: list[dict]) -> dict:
         "top_by_vulnsight": [
             {"cve": f.cve_id, "cvss": f.cvss_score, "severity": f.severity,
              "confidence": f.confidence_score,
+             "kev": getattr(f, "kev", None), "epss": getattr(f, "epss", None),
+             "unverified_prerequisite": getattr(f, "unverified_prerequisite", None),
              "contribution": round(score_finding_contribution(f), 2),
              "description": (f.description or "")[:200]}
             for f in top
         ],
+        "top_by_cvss": [f.cve_id for f in top_cvss],
+        # Full descriptions of the main service's findings, for label sheets.
+        "descriptions": {f.cve_id: f.description or "" for f in main_fs},
+        # Pre-registered M3: how often the prerequisite discount applies.
+        "findings_total": len(all_fs),
+        "findings_flagged": sum(1 for f in all_fs if getattr(f, "unverified_prerequisite", None)),
         "misconfigurations": sorted(
             {m["check_id"] for s in services for m in s.get("misconfigurations", [])}
         ),
@@ -194,16 +207,38 @@ def summary(targets: list[dict]) -> dict:
                                 mean([d["rank_vulnsight"][1] for d in hit])],
         "cves_matched_total": sum(t["cves_matched"] for t in targets),
         "targets_with_failed_lookups": sum(1 for t in targets if t.get("failed_lookups")),
+        "findings_total": sum(t.get("findings_total", 0) for t in targets),
+        "findings_flagged": sum(t.get("findings_flagged", 0) for t in targets),
         # A run with any incomplete lookup or broken target measures NVD or
         # infrastructure flakiness, not recall: it is INVALID, not a lower score.
-        "valid": all(
-            not t.get("failed_lookups")
-            and t.get("scan_cve_lookups_failed") == 0
-            and t.get("scan_status") == "completed"
-            and t["port_open"]
-            for t in targets
-        ),
+        "valid": all(target_valid(t) for t in targets),
     }
+
+
+def target_valid(t: dict) -> bool:
+    return bool(
+        not t.get("failed_lookups")
+        and t.get("scan_cve_lookups_failed") == 0
+        and t.get("scan_threat_intel_failed") == 0
+        and t.get("scan_status") == "completed"
+        and t["port_open"]
+    )
+
+
+def label_sheet(rows: list[dict], known: dict[str, dict[str, str]]) -> dict[str, list[str]]:
+    """CVEs to label blind, per target, sorted by CVE id:
+    - held-out targets: union of the CVSS-only and VulnSight top N;
+    - other targets: VulnSight top-N CVEs without a Phase 9 label."""
+    sheet = {}
+    for t in rows:
+        top_vs = {f["cve"] for f in t["top_by_vulnsight"]}
+        if t.get("heldout"):
+            cves = top_vs | set(t["top_by_cvss"])
+        else:
+            cves = top_vs - set(known.get(t["host"], {}))
+        if cves:
+            sheet[t["host"]] = sorted(cves)
+    return sheet
 
 
 # ---------------------------------------------------------------- API
@@ -222,6 +257,11 @@ def api(method: str, path: str, body: dict | None = None):
 
 def run() -> None:
     expected = json.loads((HERE / "expected.json").read_text())
+    heldout_path = HERE / "expected-heldout.json"
+    if heldout_path.exists():
+        expected["targets"] += [
+            {**t, "heldout": True} for t in json.loads(heldout_path.read_text())["targets"]
+        ]
     started = dt.datetime.now(dt.timezone.utc)
     with SessionLocal() as db:
         cache_rows_at_start = db.query(cache.CveCache).count()
@@ -263,8 +303,12 @@ def run() -> None:
                  scan_risk_score=scan["risk_score"], scan_risk_tier=scan["risk_tier"],
                  error_message=scan["error_message"], failed_lookups=failed_lookups(assets),
                  scan_cve_lookups_total=scan.get("cve_lookups_total"),
-                 scan_cve_lookups_failed=scan.get("cve_lookups_failed"))
+                 scan_cve_lookups_failed=scan.get("cve_lookups_failed"),
+                 scan_threat_intel_failed=scan.get("threat_intel_failed"),
+                 heldout=bool(t.get("heldout")))
         rows.append(m)
+    main_rows = [m for m in rows if not m["heldout"]]
+    heldout_rows = [m for m in rows if m["heldout"]]
 
     result = {
         "run_started_utc": started.isoformat(timespec="seconds"),
@@ -273,7 +317,10 @@ def run() -> None:
         # 0 = every NVD lookup in this run was live (cold cache).
         "cve_cache_rows_at_start": cache_rows_at_start,
         "project_id": project["id"],
-        "summary": summary(rows),
+        "summary": {**summary(main_rows), "valid": all(target_valid(t) for t in rows)},
+        "heldout_summary": summary(heldout_rows) if heldout_rows else None,
+        "applicability_rules": {"features": applicability.RULE_FEATURE_COUNT,
+                                "patterns": applicability.RULE_PATTERN_COUNT},
         "targets": rows,
         "raw": raw,
     }
@@ -282,7 +329,28 @@ def run() -> None:
     stem = started.strftime("%Y-%m-%d-%H%M")  # same-day runs must not overwrite
     (out / f"{stem}.json").write_text(json.dumps(result, indent=2, default=str))
     (out / f"{stem}.md").write_text(render_md(result))
+    known_path = HERE / "labels" / "phase9-labels.json"
+    known = json.loads(known_path.read_text())["labels"] if known_path.exists() else {}
+    sheet = label_sheet(rows, known)
+    (out / f"{stem}-labelsheet.json").write_text(json.dumps(sheet, indent=2))
+    (out / f"{stem}-labelsheet.md").write_text(render_sheet(sheet, rows))
     print(json.dumps(result["summary"], indent=2))
+
+
+def render_sheet(sheet: dict[str, list[str]], rows: list[dict]) -> str:
+    """Blind labelling sheet: CVE id and description only (no score, rank,
+    flag, or which list a CVE came from)."""
+    desc = {t["host"]: t["descriptions"] for t in rows}
+    lines = ["# Labelling sheet", "",
+             "Label each CVE A (applicable to this container as configured), "
+             "N (needs a feature/module/platform/config it lacks) or U (unclear).", ""]
+    for host, cves in sheet.items():
+        lines += [f"## {host}", "", "| CVE | Description | Label | Reason |", "|---|---|---|---|"]
+        for cve in cves:
+            text = " ".join(desc[host].get(cve, "").split()).replace("|", "/")
+            lines.append(f"| {cve} | {text} | | |")
+        lines.append("")
+    return "\n".join(lines) + "\n"
 
 
 def _fmt_range(r) -> str:
@@ -317,13 +385,24 @@ def render_md(r: dict) -> str:
         "- Mean rank of detected documented CVEs (best-worst over ties): CVSS-only "
         f"{_fmt_range(s['mean_rank_cvss_only'])}, VulnSight {_fmt_range(s['mean_rank_vulnsight'])}",
         f"- CVE cache rows at run start: {r['cve_cache_rows_at_start']} (0 = every lookup live)",
+        f"- Findings flagged with an unverified prerequisite: {s['findings_flagged']}/"
+        f"{s['findings_total']} (rules: {r['applicability_rules']['features']} features, "
+        f"{r['applicability_rules']['patterns']} patterns)",
         "",
         "## Per target",
         "",
         "| Target | nmap product/version | CPE | Documented CVE | Detected | Rank CVSS-only | "
-        "Rank VulnSight | CVEs matched | Failed NVD lookups | Misconfigs |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "Rank VulnSight | CVEs matched | Failed NVD lookups | Threat-intel failed | Misconfigs |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
+    if r.get("heldout_summary"):
+        h = r["heldout_summary"]
+        lines[lines.index("## Per target") - 1:lines.index("## Per target") - 1] = [
+            "",
+            f"- Held-out targets (separate row, no claim): documented CVEs detected "
+            f"{h['documented_detected']}/{h['documented_total']}; flagged "
+            f"{h['findings_flagged']}/{h['findings_total']}",
+        ]
     for t in r["targets"]:
         fp = t["fingerprint"]
         for d in t["documented"]:
@@ -333,19 +412,24 @@ def render_md(r: dict) -> str:
                 f"{_fmt_range(d.get('rank_cvss'))}/{d.get('of') or '-'} | "
                 f"{_fmt_range(d.get('rank_vulnsight'))}/{d.get('of') or '-'} | {t['cves_matched']} | "
                 f"{len(t.get('failed_lookups', [])) or '-'} | "
+                f"{t.get('scan_threat_intel_failed')} | "
                 f"{', '.join(t['misconfigurations']) or '-'} |"
             )
-    lines += ["", "## Manual applicability audit (top 10 per target, by VulnSight rank)", "",
-              "Manual judgement: `applicable` = plausible in this container's config; "
-              "`not-applicable` = needs a module/platform/config the container lacks; "
-              "`unclear` = can't tell from the advisory.", ""]
+    lines += ["", "## Top 10 per target, by VulnSight rank", "",
+              "Applicability labels are made separately (blind label sheet + "
+              "score_labels.py), not in this file.", ""]
     for t in r["targets"]:
         if not t["top_by_vulnsight"]:
             continue
-        lines += [f"### {t['host']}", "", "| # | CVE | CVSS | Contribution | Audit | Reason |",
-                  "|---|---|---|---|---|---|"]
+        lines += [f"### {t['host']}" + (" (held-out)" if t.get("heldout") else ""), "",
+                  "| # | CVE | CVSS | KEV | EPSS | Prerequisite | Contribution |",
+                  "|---|---|---|---|---|---|---|"]
         for i, f in enumerate(t["top_by_vulnsight"], 1):
-            lines.append(f"| {i} | {f['cve']} | {f['cvss']} | {f['contribution']} | TODO | |")
+            lines.append(
+                f"| {i} | {f['cve']} | {f['cvss']} | {'yes' if f.get('kev') else '-'} | "
+                f"{f.get('epss') if f.get('epss') is not None else '-'} | "
+                f"{f.get('unverified_prerequisite') or '-'} | {f['contribution']} |"
+            )
         lines.append("")
     return "\n".join(lines) + "\n"
 
