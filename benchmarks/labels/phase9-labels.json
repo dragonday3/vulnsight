@@ -62,7 +62,7 @@
       "CVE-2021-22135": "N"
     },
     "bench-es11": {
-      "CVE-2015-1427": "A",
+      "CVE-2015-1427": "N",
       "CVE-2015-5377": "A",
       "CVE-2014-3120": "A",
       "CVE-2019-7611": "N",
@@ -97,5 +97,6 @@
       "CVE-2016-3440": "N",
       "CVE-2017-3308": "A"
     }
-  }
+  },
+  "erratum": "2026-11-25: bench-es11 CVE-2015-1427 relabelled A -> N. The Phase 9 audits said the Groovy jar is bundled in Elasticsearch 1.1.1; it is not (only 1.4.2 bundles groovy-all-2.3.2.jar). A Phase 9 command printed both containers' output under one heading. Corrected Phase 9 totals: 15 A / 49 N / 16 U. See results/ERRATA.md."
 }
