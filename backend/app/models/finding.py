@@ -62,7 +62,8 @@ class Finding(Base):
     # which has no CVSS equivalent here).
     severity: Mapped[str] = mapped_column(String(20), nullable=False, default="NONE")
     cvss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    cvss_vector: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Text, not varchar(100): full CVSS v4.0 vectors run to ~180 characters.
+    cvss_vector: Mapped[str | None] = mapped_column(Text, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Raw NVD `cve` object subtree for this CVE, verbatim — mirrors the
     # Service.evidence convention exactly: structured columns above are a

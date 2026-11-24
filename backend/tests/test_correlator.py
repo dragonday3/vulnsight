@@ -13,6 +13,7 @@ connection is never actually used to talk to Redis.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from unittest.mock import patch
 
 import redis
@@ -468,3 +469,27 @@ def test_renamed_vendor_cpe_is_also_looked_up_under_nvd_alias(
     assert [c.args[0] for c in mock_fetch.call_args_list] == [nmap_cpe, nvd_cpe]
     findings = db.execute(select(Finding)).scalars().all()
     assert [(f.cve_id, f.matched_cpe) for f in findings] == [("CVE-2017-7529", nvd_cpe)]
+
+
+def test_full_length_cvss_v4_vector_persists(db: Session, redis_client: redis.Redis) -> None:
+    """NVD returns CVSS v4.0 vectors with every optional metric spelled out
+    (~180 chars). A varchar(100) column made the whole findings insert for
+    the CPE fail, silently dropping all its CVEs (Phase 9 benchmark)."""
+    vector = (
+        "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N/E:X/CR:X/IR:X/AR:X"
+        "/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X/MSC:X/MSI:X/MSA:X/S:X/AU:X/R:X"
+        "/V:X/RE:X/U:Amber"
+    )
+    assert len(vector) > 100
+    long_cve, short_cve = _cves("CVE-2025-23419", "CVE-2017-7529")
+    result = NvdFetchResult(
+        cves=[replace(long_cve, cvss_vector=vector), short_cve], total_results=2
+    )
+    service = _make_service(db, evidence={"cpe": [CPE22]})
+
+    with patch.object(nvd_client, "fetch_cves_for_cpe", return_value=result):
+        correlate_services(db, redis_client, [service])
+
+    findings = db.execute(select(Finding).order_by(Finding.cve_id)).scalars().all()
+    assert [f.cve_id for f in findings] == ["CVE-2017-7529", "CVE-2025-23419"]
+    assert findings[1].cvss_vector == vector
