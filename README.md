@@ -11,7 +11,7 @@ VulnSight discovers what is running on a host, matches it to known CVEs, checks 
 - **6-stage asynchronous scan pipeline** run by Celery workers: discovery → service fingerprinting → misconfiguration analysis → CVE correlation → risk analysis → report generation
 - **Discovery:** native asyncio port scanner, or Nmap `-sV` service/version detection (per-scan setting)
 - **CVE correlation:** fingerprinted services → CPE 2.3 → [NIST NVD CVE API](https://nvd.nist.gov/developers/vulnerabilities); parses CVSS v4.0, v3.1, v3.0 and v2 metrics; 7-day CVE cache in PostgreSQL
-- **Correlation completeness:** each scan records how many CVE lookups failed or weren't stored, and the scan and report pages warn when the "no CVEs" result for a service isn't a clean one
+- **Correlation completeness:** each scan records how many CVE lookups did not complete (failed, not stored, or truncated), and the scan and report pages warn when the count is above zero
 - **Shared NVD rate limiting:** a Redis + Lua atomic sliding-window limiter keeps every worker process within NVD's public limit of 5 requests per 30 seconds
 - **Evidence confidence (0–100):** Nmap-probed service matches always outrank port-table guesses
 - **Analyst validation:** findings are `unvalidated`, `confirmed` or `false_positive`; false positives drop out of risk scoring
@@ -65,19 +65,26 @@ NVD's own configuration data:
 - CVE-2012-2122 is listed for MySQL up to 5.5.21, though the advisory
   covers releases before 5.5.24.
 
-| Target | Documented CVE | Detected | Rank (CVSS-only / VulnSight) |
-|---|---|---|---|
-| Apache httpd 2.4.49 | CVE-2021-41773 | yes | 1 / 1 of 88 |
-| Apache Tomcat 8.5.19 | CVE-2017-12615 | no: not in NVD's config for 8.5.x\* | - |
-| Apache Tomcat 9.0.30 | CVE-2020-1938 | yes | 1 / 1 of 77 |
-| nginx 1.13.2 | CVE-2017-7529 | yes | 3 / 3 of 15 |
-| Elasticsearch 1.4.2 | CVE-2015-1427 | yes | 1 / 1 of 15 |
-| Elasticsearch 1.1.1 | CVE-2014-3120 | yes | 3 / 3 of 17 |
-| Jetty 9.4.37 | CVE-2021-28164 | yes | 12 / 12 of 26 |
-| MySQL 5.5.23 | CVE-2012-2122 | no: not in NVD's config for 5.5.23\* | - |
+Ranks are shown as best–worst, because many CVEs share the same score.
+For example, CVE-2021-41773 is tied at CVSS 9.8 with 14 others.
+
+| Target | Documented CVE | Detected | Rank, CVSS-only | Rank, VulnSight |
+|---|---|---|---|---|
+| Apache httpd 2.4.49 | CVE-2021-41773 | yes | 1–15 of 88 | 1–15 of 88 |
+| Apache Tomcat 8.5.19 | CVE-2017-12615 | no: not in NVD's config for 8.5.x\* | - | - |
+| Apache Tomcat 9.0.30 | CVE-2020-1938 | yes | 1–9 of 77 | 1–9 of 77 |
+| nginx 1.13.2 | CVE-2017-7529 | yes | 3–8 of 15 | 3–8 of 15 |
+| Elasticsearch 1.4.2 | CVE-2015-1427 | yes | 1–2 of 15 | 1–2 of 15 |
+| Elasticsearch 1.1.1 | CVE-2014-3120 | yes | 3–4 of 17 | 3–4 of 17 |
+| Jetty 9.4.37 | CVE-2021-28164 | yes | 12–18 of 26 | 12–18 of 26 |
+| MySQL 5.5.23 | CVE-2012-2122 | no: not in NVD's config for 5.5.23\*† | - | - |
 
 \* Classified as "not version-matchable" by checking NVD after the run,
 so 6 of 6 version-matchable is a post-hoc figure, not the headline.
+
+† In this run the MySQL lookup was truncated at 200 of NVD's 421 CVEs.
+The missing pages were checked by hand and don't contain CVE-2012-2122.
+The client now paginates.
 
 **Disclosure: these numbers are benchmark-informed.**
 - The first run scored **2 of 8**. Investigating it found four real bugs,
@@ -89,13 +96,15 @@ so 6 of 6 version-matchable is a post-hoc figure, not the headline.
   - full-length CVSS v4.0 vectors overflowed a 100-character column,
     silently dropping every CVE for that product;
   - none of these failures were visible on the scan.
+- The review of these fixes found a fifth: lookups with more than 200
+  CVEs were cut off. That one is fixed too (pagination).
 - Every run is kept as recorded in `benchmarks/results/`. None of them is
   a blind or held-out measurement.
 
 **Ranking is not better than CVSS yet.**
-- CVSS-only and VulnSight ordering were identical (mean rank of detected
-  CVEs 3.5 for both), because every finding came from a direct Nmap probe
-  at the same confidence.
+- CVSS-only and VulnSight ordering were identical: mean rank of detected
+  documented CVEs was 3.5–9.3 for both. Every finding came from a direct
+  Nmap probe at the same confidence.
 - A [manual audit](benchmarks/results/2026-11-24-run4-audit.md) of each
   target's top 10 findings rated 15 of 80 applicable to the container's
   actual configuration, 48 not applicable and 17 unclear. Most
@@ -266,8 +275,8 @@ never built fails on every dynamic route with `Cannot find name
 - CVE matching is version-based. It can't tell whether the vulnerable
   module or feature is enabled, so most matches are version-applicable
   rather than exploitable (see Benchmark).
-- The NVD client fetches one page of 200 CVEs per CPE. Products with more
-  (e.g. Oracle MySQL 5.5.23, 421 CVEs) are truncated, and this is logged.
+- The NVD client fetches up to 5 pages (1,000 CVEs) per CPE. Beyond that,
+  the lookup is marked incomplete on the scan.
 - nmap-to-NVD vendor renames are a small hand-kept table
   (`cpe_utils.nvd_aliases`). Other renamed products will still be missed
   until they are added.

@@ -126,8 +126,8 @@ export default async function ScanReportPage({
           )}
           {summary.cve_correlation?.lookups_failed != null && summary.cve_correlation?.lookups_failed > 0 && (
             <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              CVE correlation incomplete: {summary.cve_correlation?.lookups_failed} of {summary.cve_correlation?.lookups_total} CPE lookups failed. Services
-              showing no CVEs may not be clean.
+              CVE correlation incomplete: {summary.cve_correlation?.lookups_failed} of {summary.cve_correlation?.lookups_total} CVE lookups did not complete
+              (failed, not stored, or truncated). Services showing no CVEs may not be clean.
             </p>
           )}
         </section>

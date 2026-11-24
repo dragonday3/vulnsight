@@ -9,9 +9,10 @@ Runs inside the backend image so it scores findings with the real
 
 For every target in expected.json it creates an authorized hostname target,
 runs an nmap scan through the public API, waits for a terminal state, then
-computes the metrics fixed in expected.json's pre-registration:
-fingerprint, documented-CVE recall, CVEs matched, CVSS-only vs VulnSight
-rank of each documented CVE, and misconfigurations. Writes
+computes the metrics defined before the first run (in the project's
+Phase 9 plan, listed in benchmarks/README.md): fingerprint,
+documented-CVE recall, CVEs matched, CVSS-only vs VulnSight rank of each
+documented CVE, and misconfigurations. Writes
 results/<date>.json (raw + metrics) and results/<date>.md (tables, plus a
 top-10 table per target for the manual applicability audit).
 """
@@ -52,21 +53,30 @@ def _ns(finding: dict) -> SimpleNamespace:
     return SimpleNamespace(**finding)
 
 
-def cvss_key(f: SimpleNamespace) -> tuple:
-    # CVSS-only ordering: highest cvss first, unscored last, CVE id tiebreak.
-    return (-(f.cvss_score if f.cvss_score is not None else -1.0), f.cve_id)
+def cvss_score_of(f: SimpleNamespace) -> float:
+    # CVSS-only ordering: highest cvss first, unscored last.
+    return f.cvss_score if f.cvss_score is not None else -1.0
 
 
-def vulnsight_key(f: SimpleNamespace) -> tuple:
-    return (-score_finding_contribution(f), f.cve_id)
+def vulnsight_score_of(f: SimpleNamespace) -> float:
+    return score_finding_contribution(f)
 
 
-def rank_of(cve_id: str, findings: list[SimpleNamespace], key) -> int | None:
-    """1-based rank of cve_id in findings sorted by key, None if absent."""
-    for i, f in enumerate(sorted(findings, key=key), start=1):
-        if f.cve_id == cve_id:
-            return i
-    return None
+def rank_range(cve_id: str, findings: list[SimpleNamespace], score) -> tuple[int, int] | None:
+    """(best, worst) 1-based rank of cve_id when sorted by score, highest
+    first, None if absent. Ties are reported as a range instead of being
+    broken by CVE id, which would quietly favour older (documented) CVEs."""
+    mine = next((score(f) for f in findings if f.cve_id == cve_id), None)
+    if mine is None:
+        return None
+    higher = sum(1 for f in findings if score(f) > mine)
+    tied = sum(1 for f in findings if score(f) == mine)
+    return higher + 1, higher + tied
+
+
+def audit_key(f: SimpleNamespace) -> tuple:
+    # Deterministic order for the top-N audit list only.
+    return (-vulnsight_score_of(f), f.cve_id)
 
 
 def service_findings(service: dict) -> list[SimpleNamespace]:
@@ -88,13 +98,13 @@ def target_metrics(expected: dict, assets: list[dict]) -> dict:
         # service other than the expected port, e.g. Tomcat's AJP port).
         best = None
         for port, fs in per_service.items():
-            rc, rv = rank_of(cve, fs, cvss_key), rank_of(cve, fs, vulnsight_key)
+            rc, rv = rank_range(cve, fs, cvss_score_of), rank_range(cve, fs, vulnsight_score_of)
             if rv is not None and (best is None or rv < best["rank_vulnsight"]):
                 best = {"port": port, "rank_cvss": rc, "rank_vulnsight": rv, "of": len(fs)}
         documented.append({"cve": cve, "detected": best is not None, **(best or {})})
 
     main_fs = per_service.get(expected["port"], [])
-    top = sorted(main_fs, key=vulnsight_key)[:TOP_N_AUDIT]
+    top = sorted(main_fs, key=audit_key)[:TOP_N_AUDIT]
     return {
         "host": expected["host"],
         "port": expected["port"],
@@ -138,9 +148,11 @@ def lookup_names(assets: list[dict]) -> set[str]:
 
 
 def failed_lookups(assets: list[dict]) -> list[str]:
-    """CPE names whose CVEs never became findings. The API can't tell "no
-    CVEs" from "lookup failed" (a known gap); this can, two ways:
+    """CPE names whose lookup did not complete, checked independently of
+    the scan's own cve_lookups_failed count:
     - no cve_cache row: the NVD lookup failed (cache.store refuses failures);
+    - a stale row: this scan's re-fetch must have failed;
+    - NVD's total exceeds the cached list: truncated at the page cap;
     - cached CVEs but no finding with that matched_cpe: persisting failed.
     """
     persisted = {
@@ -153,6 +165,10 @@ def failed_lookups(assets: list[dict]) -> list[str]:
             entry = cache.get_cached(db, name)
             if entry is None:
                 failed.append(f"{name} (lookup failed)")
+            elif cache.is_stale(entry):
+                failed.append(f"{name} (stale cache row)")
+            elif entry.total_results > len(entry.cves):
+                failed.append(f"{name} (truncated {len(entry.cves)}/{entry.total_results})")
             elif entry.cves and name not in persisted:
                 failed.append(f"{name} (findings not persisted)")
     return failed
@@ -171,14 +187,22 @@ def summary(targets: list[dict]) -> dict:
         "recall": round(len(hit) / len(docs), 3) if docs else None,
         "fingerprinted_with_cpe": sum(1 for t in targets if t["fingerprint"]["cpe"]),
         "targets": len(targets),
-        "mean_rank_cvss_only": mean([d["rank_cvss"] for d in hit]),
-        "mean_rank_vulnsight": mean([d["rank_vulnsight"] for d in hit]),
+        # Mean of best and of worst tie-aware rank over detected documented CVEs.
+        "mean_rank_cvss_only": [mean([d["rank_cvss"][0] for d in hit]),
+                                mean([d["rank_cvss"][1] for d in hit])],
+        "mean_rank_vulnsight": [mean([d["rank_vulnsight"][0] for d in hit]),
+                                mean([d["rank_vulnsight"][1] for d in hit])],
         "cves_matched_total": sum(t["cves_matched"] for t in targets),
         "targets_with_failed_lookups": sum(1 for t in targets if t.get("failed_lookups")),
-        # A run with any failed lookup measures NVD/infra flakiness, not
-        # recall: it is INVALID, not a lower score.
-        "valid": all(not t.get("failed_lookups") and not t.get("scan_cve_lookups_failed")
-                     for t in targets),
+        # A run with any incomplete lookup or broken target measures NVD or
+        # infrastructure flakiness, not recall: it is INVALID, not a lower score.
+        "valid": all(
+            not t.get("failed_lookups")
+            and t.get("scan_cve_lookups_failed") == 0
+            and t.get("scan_status") == "completed"
+            and t["port_open"]
+            for t in targets
+        ),
     }
 
 
@@ -199,6 +223,8 @@ def api(method: str, path: str, body: dict | None = None):
 def run() -> None:
     expected = json.loads((HERE / "expected.json").read_text())
     started = dt.datetime.now(dt.timezone.utc)
+    with SessionLocal() as db:
+        cache_rows_at_start = db.query(cache.CveCache).count()
     project = api("POST", "/projects", {
         "name": f"benchmark {started:%Y-%m-%d %H:%M}",
         "description": "Phase 9 benchmark: vulhub targets on the internal compose network",
@@ -244,6 +270,8 @@ def run() -> None:
         "run_started_utc": started.isoformat(timespec="seconds"),
         "run_finished_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "vulnsight_commit": os.environ.get("VULNSIGHT_COMMIT", "unknown"),
+        # 0 = every NVD lookup in this run was live (cold cache).
+        "cve_cache_rows_at_start": cache_rows_at_start,
         "project_id": project["id"],
         "summary": summary(rows),
         "targets": rows,
@@ -255,6 +283,12 @@ def run() -> None:
     (out / f"{stem}.json").write_text(json.dumps(result, indent=2, default=str))
     (out / f"{stem}.md").write_text(render_md(result))
     print(json.dumps(result["summary"], indent=2))
+
+
+def _fmt_range(r) -> str:
+    if not r or r[0] is None:
+        return "-"
+    return f"{r[0]}" if r[0] == r[1] else f"{r[0]}-{r[1]}"
 
 
 def render_md(r: dict) -> str:
@@ -278,8 +312,9 @@ def render_md(r: dict) -> str:
         f"- Total version-applicable CVEs matched: {s['cves_matched_total']}",
         f"- Targets with at least one failed NVD lookup: {s['targets_with_failed_lookups']}"
         " (their zero/low counts are not a clean result)",
-        f"- Mean rank of detected documented CVEs: CVSS-only {s['mean_rank_cvss_only']}, "
-        f"VulnSight {s['mean_rank_vulnsight']}",
+        "- Mean rank of detected documented CVEs (best-worst over ties): CVSS-only "
+        f"{_fmt_range(s['mean_rank_cvss_only'])}, VulnSight {_fmt_range(s['mean_rank_vulnsight'])}",
+        f"- CVE cache rows at run start: {r['cve_cache_rows_at_start']} (0 = every lookup live)",
         "",
         "## Per target",
         "",
@@ -293,8 +328,8 @@ def render_md(r: dict) -> str:
             lines.append(
                 f"| {t['host']}:{t['port']} | {fp['product'] or '-'} {fp['version'] or ''} | "
                 f"{', '.join(fp['cpe']) or '-'} | {d['cve']} | {'yes' if d['detected'] else 'no'} | "
-                f"{d.get('rank_cvss') or '-'}/{d.get('of') or '-'} | "
-                f"{d.get('rank_vulnsight') or '-'}/{d.get('of') or '-'} | {t['cves_matched']} | "
+                f"{_fmt_range(d.get('rank_cvss'))}/{d.get('of') or '-'} | "
+                f"{_fmt_range(d.get('rank_vulnsight'))}/{d.get('of') or '-'} | {t['cves_matched']} | "
                 f"{len(t.get('failed_lookups', [])) or '-'} | "
                 f"{', '.join(t['misconfigurations']) or '-'} |"
             )
