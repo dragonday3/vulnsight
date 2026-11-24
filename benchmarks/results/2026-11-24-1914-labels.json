@@ -1,0 +1,233 @@
+{
+  "method": "Blind labels for 2026-11-24-1914-labelsheet.md, made by a fresh-context subagent that was given ONLY the label sheet (CVE id + description, sorted by id; no score, rank, flag or source list) and 2026-11-24-1914-labeller-facts.md (raw container config observations), with instructions not to open any other file, repository or the web, and a fixed A/N/U rubric. Committed before any Phase 10 metric was computed. Correction: the facts file given in the first pass omitted bench-jetty, so that pass labelled all 7 jetty CVEs U for lack of facts; the jetty section was added and a second fresh subagent labelled only the 7 jetty CVEs (same rules). The first-pass jetty labels are kept below as superseded.",
+  "labels": {
+    "bench-httpd": {
+      "CVE-2021-44224": "N",
+      "CVE-2022-22719": "U",
+      "CVE-2022-22721": "N",
+      "CVE-2022-37436": "N",
+      "CVE-2026-49975": "A"
+    },
+    "bench-tomcat": {
+      "CVE-2017-12617": "N",
+      "CVE-2018-11784": "A",
+      "CVE-2018-1336": "A",
+      "CVE-2019-0221": "N",
+      "CVE-2019-2684": "U",
+      "CVE-2020-13935": "A",
+      "CVE-2020-9484": "U",
+      "CVE-2021-33037": "A"
+    },
+    "bench-tomcat9": {
+      "CVE-2020-13935": "A",
+      "CVE-2020-9484": "U",
+      "CVE-2021-25122": "N",
+      "CVE-2021-33037": "A",
+      "CVE-2022-29885": "U",
+      "CVE-2025-48988": "U",
+      "CVE-2026-43515": "U",
+      "CVE-2026-65182": "U"
+    },
+    "bench-nginx": {
+      "CVE-2019-20372": "U",
+      "CVE-2019-9516": "N"
+    },
+    "bench-es": {
+      "CVE-2015-3337": "N",
+      "CVE-2015-5531": "A",
+      "CVE-2020-7021": "N"
+    },
+    "bench-es11": {
+      "CVE-2014-6439": "A",
+      "CVE-2015-3337": "N",
+      "CVE-2015-5531": "A",
+      "CVE-2020-7021": "N"
+    },
+    "bench-jetty": {
+      "CVE-2021-28164": "A",
+      "CVE-2021-28169": "U",
+      "CVE-2021-34429": "A",
+      "CVE-2023-26048": "U",
+      "CVE-2023-40167": "A",
+      "CVE-2024-8184": "N",
+      "CVE-2024-9823": "U"
+    },
+    "bench-mysql": {
+      "CVE-2012-5612": "A",
+      "CVE-2015-0411": "U"
+    },
+    "bench-nginx142": {
+      "CVE-2013-4547": "A",
+      "CVE-2014-0133": "N",
+      "CVE-2016-0742": "N",
+      "CVE-2016-0746": "N",
+      "CVE-2016-0747": "N",
+      "CVE-2016-1247": "N",
+      "CVE-2016-4450": "N",
+      "CVE-2017-20005": "N",
+      "CVE-2017-7529": "A",
+      "CVE-2019-20372": "U",
+      "CVE-2021-23017": "N",
+      "CVE-2021-3618": "N"
+    },
+    "bench-php": {
+      "CVE-2017-15715": "U",
+      "CVE-2017-3167": "N",
+      "CVE-2017-3169": "N",
+      "CVE-2017-7679": "A",
+      "CVE-2017-9788": "N",
+      "CVE-2017-9798": "U",
+      "CVE-2018-1303": "N",
+      "CVE-2018-1312": "N",
+      "CVE-2021-26690": "N",
+      "CVE-2021-26691": "N",
+      "CVE-2021-34798": "U",
+      "CVE-2021-39275": "N",
+      "CVE-2021-44224": "N",
+      "CVE-2021-44790": "N",
+      "CVE-2022-22719": "U",
+      "CVE-2022-22720": "A",
+      "CVE-2022-23943": "N",
+      "CVE-2022-31813": "N",
+      "CVE-2024-38476": "A"
+    },
+    "bench-postgres": {
+      "CVE-2017-15098": "N",
+      "CVE-2017-7486": "N",
+      "CVE-2017-7546": "N",
+      "CVE-2017-7547": "N",
+      "CVE-2018-1058": "A",
+      "CVE-2018-1115": "N",
+      "CVE-2021-23214": "N",
+      "CVE-2026-6473": "U",
+      "CVE-2026-6475": "N",
+      "CVE-2026-6477": "N",
+      "CVE-2026-6637": "N"
+    }
+  },
+  "reasons": {
+    "bench-httpd": {
+      "CVE-2021-44224": "Needs httpd configured as forward proxy (ProxyRequests on); facts: no mod_proxy* modules loaded.",
+      "CVE-2022-22719": "Description ('crafted request body') names no affected module, so presence of the vulnerable component cannot be settled from the description.",
+      "CVE-2022-22721": "Needs LimitXMLRequestBody raised above 350MB on 32-bit; facts: stock httpd.conf with no extra config, so the 1M default applies.",
+      "CVE-2022-37436": "Needs a 'malicious backend', i.e. httpd proxying to a backend; facts: no proxy modules loaded.",
+      "CVE-2026-49975": "Names mod_http, the core HTTP protocol module that is always compiled in; 2.4.49 is within 2.4.17-2.4.67."
+    },
+    "bench-tomcat": {
+      "CVE-2017-12617": "Needs HTTP PUT enabled (default servlet readonly=false); facts: default servlet readonly true, no PUT.",
+      "CVE-2018-11784": "Default servlet directory redirect; facts: default servlet with default settings, 8.5.19 within 8.5.0-8.5.33.",
+      "CVE-2018-1336": "Core UTF-8 decoder used in request processing; 8.5.19 within 8.5.0-8.5.30.",
+      "CVE-2019-0221": "Needs SSI (printenv) enabled, which is 'disabled by default'; facts: default web.xml settings.",
+      "CVE-2019-2684": "Java SE RMI flaw; facts give no JRE version for the container, so cannot tell whether the runtime is affected.",
+      "CVE-2020-13935": "Tomcat's WebSocket implementation ships enabled by default and the default examples webapp (present per facts) exposes WebSocket endpoints; 8.5.19 in range.",
+      "CVE-2020-9484": "Needs PersistenceManager with FileStore; facts do not describe session-manager (context.xml) configuration either way.",
+      "CVE-2021-33037": "Core HTTP/1.1 transfer-encoding parsing on the enabled 8080 HTTP/1.1 connector; 8.5.19 within 8.5.0-8.5.66."
+    },
+    "bench-tomcat9": {
+      "CVE-2020-13935": "Tomcat WebSocket implementation enabled by default and default examples webapp present; 9.0.30 within 9.0.0.M1-9.0.36.",
+      "CVE-2020-9484": "Needs PersistenceManager with FileStore; facts do not describe session-manager configuration either way.",
+      "CVE-2021-25122": "Needs h2c (HTTP/2 cleartext upgrade); facts: no HTTP/2 configured.",
+      "CVE-2021-33037": "Core HTTP/1.1 transfer-encoding parsing on the enabled 8080 connector; 9.0.30 within 9.0.0.M1-9.0.46.",
+      "CVE-2022-29885": "Concerns clustering with EncryptInterceptor; facts do not mention cluster configuration at all.",
+      "CVE-2025-48988": "Description ('Allocation of Resources Without Limits') names no affected component, so presence cannot be settled.",
+      "CVE-2026-43515": "Needs multiple method constraints defining a method for the same extension; facts do not describe web.xml security-constraint contents.",
+      "CVE-2026-65182": "Needs a specific ordering of security constraints (longer path before shorter sub-path); facts do not describe security-constraint contents."
+    },
+    "bench-nginx": {
+      "CVE-2019-20372": "Needs 'certain error_page configurations'; facts say stock conf.d default server but do not state its error_page directives.",
+      "CVE-2019-9516": "HTTP/2 header-leak DoS; facts: http_v2 built but no http2 in active config, plain HTTP on port 80."
+    },
+    "bench-es": {
+      "CVE-2015-3337": "Needs a site plugin enabled; facts: no plugins installed.",
+      "CVE-2015-5531": "Snapshot API is core Elasticsearch, available in 1.4.2 with no security plugin; version before 1.6.1.",
+      "CVE-2020-7021": "Needs audit logging with emit_request_body (security/X-Pack feature); facts: no Shield/X-Pack security plugin."
+    },
+    "bench-es11": {
+      "CVE-2014-6439": "CORS handling is core HTTP module and enabled by default before 1.4 (default flipped in 1.4); facts: no non-default settings, 1.1.1 before 1.4.0.Beta1.",
+      "CVE-2015-3337": "Needs a site plugin enabled; facts: no plugins.",
+      "CVE-2015-5531": "Snapshot API is core (exists since 1.0), no security plugin; 1.1.1 before 1.6.1.",
+      "CVE-2020-7021": "Needs audit logging with emit_request_body (security feature); facts: no security plugin."
+    },
+    "bench-jetty": {
+      "CVE-2021-28164": "Version 9.4.37.v20210219 is in the stated range; flaw is in core URI handling under the default compliance mode, and the http module plus deployed webapps (with WEB-INF) are present.",
+      "CVE-2021-28169": "Requires requests to the ConcatServlet, a servlet that must be mapped by a webapp; facts say only 'default/demo webapps' and do not say whether ConcatServlet is deployed.",
+      "CVE-2021-34429": "Version 9.4.37 is in the 9.4.37-9.4.42 range; core URI decoding variant of CVE-2021-28164, and the http module serving deployed webapps is enabled.",
+      "CVE-2023-26048": "Needs a servlet with multipart support (@MultipartConfig) calling getParameter/getParts; facts do not say whether any deployed default/demo webapp has one.",
+      "CVE-2023-40167": "HTTP/1 Content-Length header parsing in the core server; the http module (HTTP/1.1 on 8080) is enabled and 9.4.37 predates the 9.4.52 fix.",
+      "CVE-2024-8184": "Affects ThreadLimitHandler.getRemote(); start.ini enables 'exactly' server, http, websocket, jsp, deploy, etc., with no threadlimit module, so the handler is not installed.",
+      "CVE-2024-9823": "Affects servers 'using DosFilter', a servlet filter configured per webapp in web.xml rather than a start.ini module; facts do not say whether any deployed webapp configures it."
+    },
+    "bench-mysql": {
+      "CVE-2012-5612": "Core SQL command handling (USE, SHOW TABLES, etc.) by authenticated users; 5.5.23 within 5.5.19-5.5.28.",
+      "CVE-2015-0411": "'Server : Security : Encryption' with unknown vectors; unclear whether it needs SSL (not configured per facts) or other encryption code."
+    },
+    "bench-nginx142": {
+      "CVE-2013-4547": "Core URI parsing; 1.4.2 within 0.8.41-1.4.3.",
+      "CVE-2014-0133": "SPDY implementation; facts: configure args only --with-http_ssl_module (no spdy module) and no spdy in config.",
+      "CVE-2016-0742": "Resolver flaw; facts: no resolver directive configured.",
+      "CVE-2016-0746": "Resolver flaw; facts: no resolver directive configured.",
+      "CVE-2016-0747": "Resolver flaw; facts: no resolver directive configured.",
+      "CVE-2016-1247": "Debian/Ubuntu/Gentoo packaging log-symlink issue; facts: nginx built from source.",
+      "CVE-2016-4450": "Requires writing a client request body to a temp file; facts: static root only, no proxy_pass/FastCGI, so request bodies are discarded rather than buffered to file.",
+      "CVE-2017-20005": "autoindex module flaw; facts: no autoindex enabled.",
+      "CVE-2017-7529": "Range filter module is enabled by default and used for static responses; 1.4.2 within 0.5.6-1.13.2.",
+      "CVE-2019-20372": "Needs 'certain error_page configurations'; facts show error_page is present but not whether it is the vulnerable form.",
+      "CVE-2021-23017": "Resolver flaw; facts: no resolver directive configured.",
+      "CVE-2021-3618": "ALPACA is a TLS cross-protocol attack; facts: plain HTTP only, no ssl listener."
+    },
+    "bench-php": {
+      "CVE-2017-15715": "Only matters where <FilesMatch> is used to block uploads; facts do not describe FilesMatch usage.",
+      "CVE-2017-3167": "Requires third-party modules calling ap_get_basic_auth_pw(); facts list only stock modules (PHP runs as CGI, not a module).",
+      "CVE-2017-3169": "mod_ssl flaw; facts: mod_ssl not enabled.",
+      "CVE-2017-7679": "mod_mime flaw; facts: mime enabled; 2.4.10 before 2.4.26.",
+      "CVE-2017-9788": "mod_auth_digest flaw; facts: auth_digest not in enabled module list.",
+      "CVE-2017-9798": "Optionsbleed needs Limit directive in .htaccess or certain httpd.conf misconfigurations; facts do not describe AllowOverride/Limit settings.",
+      "CVE-2018-1303": "Affects mod_cache_socache; facts: no cache modules enabled.",
+      "CVE-2018-1312": "HTTP Digest authentication (mod_auth_digest); facts: not enabled.",
+      "CVE-2021-26690": "mod_session flaw; facts: mod_session not enabled.",
+      "CVE-2021-26691": "SessionHeader is mod_session; facts: mod_session not enabled.",
+      "CVE-2021-34798": "Description ('Malformed requests') names no affected component.",
+      "CVE-2021-39275": "Description: no included modules pass untrusted data, only third-party ones; facts list only stock modules.",
+      "CVE-2021-44224": "Needs forward proxy (ProxyRequests on); facts: mod_proxy* not enabled.",
+      "CVE-2021-44790": "mod_lua multipart parser; facts: mod_lua not enabled.",
+      "CVE-2022-22719": "Description ('crafted request body') names no affected module.",
+      "CVE-2022-22720": "Failure to close connection when discarding request body is core HTTP request handling; 2.4.10 is 2.4.52 and earlier.",
+      "CVE-2022-23943": "mod_sed flaw; facts: mod_sed not enabled.",
+      "CVE-2022-31813": "X-Forwarded-* to origin server is mod_proxy behaviour; facts: mod_proxy* not enabled.",
+      "CVE-2024-38476": "Description says core, via backend applications' response headers; facts: PHP served via mod_cgid CGI backend."
+    },
+    "bench-postgres": {
+      "CVE-2017-15098": "Description: 9.6.x before 9.6.6 affected; container runs 9.6.7.",
+      "CVE-2017-7486": "Leak requires a foreign server with user mappings; facts: default extensions only (no FDW installed), and fix landed in 9.6.3.",
+      "CVE-2017-7546": "Description: before 9.6.4 affected; container runs 9.6.7.",
+      "CVE-2017-7547": "Description: before 9.6.4 affected; container runs 9.6.7.",
+      "CVE-2018-1058": "Core search_path behaviour; description: 9.3 through 10 affected, 9.6.7 included.",
+      "CVE-2018-1115": "adminpack extension flaw; facts: default extensions only, adminpack not added.",
+      "CVE-2021-23214": "Needs SSL with clientcert/cert authentication; facts: ssl off, pg_hba uses trust/md5.",
+      "CVE-2026-6473": "'Multiple PostgreSQL server features' unspecified, and listed branches are 14+; unclear whether 9.6 contains the affected code.",
+      "CVE-2026-6475": "pg_basebackup/pg_rewind client tools overwritten by origin superuser; not the server process exposed by this container.",
+      "CVE-2026-6477": "libpq client-side buffer overflow in psql/pg_dump; client-side only.",
+      "CVE-2026-6637": "refint contrib module; facts: default extensions only, refint not installed."
+    }
+  },
+  "superseded_first_pass_jetty": {
+    "labels": {
+      "CVE-2021-28164": "U",
+      "CVE-2021-28169": "U",
+      "CVE-2021-34429": "U",
+      "CVE-2023-26048": "U",
+      "CVE-2023-40167": "U",
+      "CVE-2024-8184": "U",
+      "CVE-2024-9823": "U"
+    },
+    "reasons": {
+      "CVE-2021-28164": "No facts section exists for bench-jetty; Jetty version (narrow 9.4.37-9.4.38 range) and compliance mode unknown.",
+      "CVE-2021-28169": "No facts for bench-jetty; whether ConcatServlet is deployed is unknown.",
+      "CVE-2021-34429": "No facts for bench-jetty; Jetty version (9.4.37-9.4.42 etc.) unknown.",
+      "CVE-2023-26048": "No facts for bench-jetty; whether any multipart-enabled servlet is deployed is unknown.",
+      "CVE-2023-40167": "No facts for bench-jetty; version and deployment unknown.",
+      "CVE-2024-8184": "No facts for bench-jetty; whether ThreadLimitHandler is configured is unknown.",
+      "CVE-2024-9823": "No facts for bench-jetty; whether DosFilter is configured is unknown."
+    }
+  }
+}
