@@ -756,6 +756,29 @@ def test_correlation_outcome_is_recorded_on_scan(db: Session, use_test_session: 
     assert (scan.cve_lookups_total, scan.cve_lookups_failed) == (4, 1)
 
 
+def test_threat_intel_failures_are_recorded_on_scan(db: Session, use_test_session: None) -> None:
+    """Phase 10: failed KEV/EPSS fetches must be visible on the scan; a
+    crash in enrichment is recorded as 1, never left NULL ("not run")."""
+    scan = _make_scan(db, value="127.0.0.1", config={"scanner": "nmap"})
+    with (
+        patch.object(NmapPortScanner, "scan", return_value=[]),
+        patch.object(tasks_module, "enrich_findings", return_value=2),
+    ):
+        tasks_module.run_scan_task(str(scan.id))
+    db.refresh(scan)
+    assert scan.threat_intel_failed == 2
+
+    crashed = _make_scan(db, value="127.0.0.1", config={"scanner": "nmap"})
+    with (
+        patch.object(NmapPortScanner, "scan", return_value=[]),
+        patch.object(tasks_module, "enrich_findings", side_effect=RuntimeError("boom")),
+    ):
+        tasks_module.run_scan_task(str(crashed.id))
+    db.refresh(crashed)
+    assert crashed.threat_intel_failed == 1
+    assert crashed.status == ScanStatus.COMPLETED
+
+
 # --- Phase 6: ANALYZING transition + analyze_services wiring ---
 #
 # `analyzer.analyze_services` itself is mocked at this level (not its

@@ -126,7 +126,8 @@ def test_per_asset_isolation_one_failure_does_not_abort_the_rest(db: Session) ->
     asset_b = _make_asset(db, scan, host="10.0.0.2")
 
     service_a = _add_service(db, asset_a, port=443)
-    _add_finding(db, service_a, cvss_score=9.0, confidence_score=100.0)  # contributes 90.0
+    # Phase 10 formula, no KEV/EPSS data: 0.5 * 90.0 = 45.0
+    _add_finding(db, service_a, cvss_score=9.0, confidence_score=100.0)  # contributes 45.0
 
     service_b = _add_service(db, asset_b, port=443)
     _add_finding(db, service_b, cvss_score=9.0, confidence_score=100.0)
@@ -146,8 +147,8 @@ def test_per_asset_isolation_one_failure_does_not_abort_the_rest(db: Session) ->
     db.refresh(scan)
 
     # Asset A: successfully scored.
-    assert asset_a.risk_score == 90.0
-    assert asset_a.risk_tier == "CRITICAL"
+    assert asset_a.risk_score == 45.0
+    assert asset_a.risk_tier == "MEDIUM"
 
     # Asset B: its own scoring raised -- its try/except rolled back and
     # moved on, leaving risk_score/risk_tier unset (None, "never scored"),
@@ -157,8 +158,8 @@ def test_per_asset_isolation_one_failure_does_not_abort_the_rest(db: Session) ->
 
     # Scan-level aggregate: computed from asset A's own persisted
     # risk_score only -- asset B's failed scoring contributes nothing.
-    assert scan.risk_score == 90.0
-    assert scan.risk_tier == "CRITICAL"
+    assert scan.risk_score == 45.0
+    assert scan.risk_tier == "MEDIUM"
 
 
 def test_all_assets_failing_leaves_scan_risk_score_null_not_zero(db: Session) -> None:
@@ -213,10 +214,10 @@ def test_scan_aggregate_uses_assets_persisted_risk_scores(db: Session) -> None:
     asset_b = _make_asset(db, scan, host="10.0.0.2")
 
     service_a = _add_service(db, asset_a, port=443)
-    _add_finding(db, service_a, cvss_score=5.0, confidence_score=100.0)  # 50.0
+    _add_finding(db, service_a, cvss_score=5.0, confidence_score=100.0)  # 0.5 * 50 = 25.0
 
     service_b = _add_service(db, asset_b, port=443)
-    _add_finding(db, service_b, cvss_score=2.5, confidence_score=100.0)  # 25.0
+    _add_finding(db, service_b, cvss_score=2.5, confidence_score=100.0)  # 0.5 * 25 = 12.5
 
     score_assets(db, scan, [asset_a, asset_b])
 
@@ -224,13 +225,13 @@ def test_scan_aggregate_uses_assets_persisted_risk_scores(db: Session) -> None:
     db.refresh(asset_b)
     db.refresh(scan)
 
-    assert asset_a.risk_score == 50.0
-    assert asset_b.risk_score == 25.0
+    assert asset_a.risk_score == 25.0
+    assert asset_b.risk_score == 12.5
 
     # Noisy-OR over the assets' own persisted scores:
-    # 1 - (1 - 0.5)(1 - 0.25) = 0.625 -> 62.5.
-    assert scan.risk_score == 62.5
-    assert scan.risk_tier == "HIGH"
+    # 1 - (1 - 0.25)(1 - 0.125) = 0.34375 -> 34.38.
+    assert scan.risk_score == 34.38
+    assert scan.risk_tier == "MEDIUM"
 
 
 def test_scan_aggregate_is_built_from_asset_risk_score_values(db: Session) -> None:
@@ -380,10 +381,10 @@ def test_same_cve_two_cpes_one_service_contributes_once(db: Session) -> None:
     score_assets(db, scan, [asset])
 
     db.refresh(asset)
-    # If this double-counted, noisy-OR over [90.0, 90.0] would be
-    # 1 - (1-0.9)(1-0.9) = 99.0, not 90.0.
-    assert asset.risk_score == 90.0
-    assert asset.risk_tier == "CRITICAL"
+    # If this double-counted, noisy-OR over [45.0, 45.0] would be
+    # 1 - (1-0.45)(1-0.45) = 69.75, not 45.0.
+    assert asset.risk_score == 45.0
+    assert asset.risk_tier == "MEDIUM"
 
 
 def test_same_cve_two_different_services_still_contributes_twice(db: Session) -> None:
@@ -398,9 +399,9 @@ def test_same_cve_two_different_services_still_contributes_twice(db: Session) ->
 
     db.refresh(asset)
     # Two distinct services genuinely both vulnerable -> noisy-OR over
-    # [90.0, 90.0] = 99.0, deliberately NOT deduped across services.
-    assert asset.risk_score == 99.0
-    assert asset.risk_tier == "CRITICAL"
+    # [45.0, 45.0] = 69.75, deliberately NOT deduped across services.
+    assert asset.risk_score == 69.75
+    assert asset.risk_tier == "HIGH"
 
 
 def test_dedup_prefers_non_false_positive_over_false_positive(db: Session) -> None:
@@ -434,20 +435,20 @@ def test_dedup_prefers_non_false_positive_over_false_positive(db: Session) -> No
     score_assets(db, scan, [asset])
 
     db.refresh(asset)
-    assert asset.risk_score == 90.0
+    assert asset.risk_score == 45.0
 
 
 def test_asset_score_combines_findings_and_misconfigs_across_services(db: Session) -> None:
     scan = _make_scan(db)
     asset = _make_asset(db, scan)
     service_a = _add_service(db, asset, port=443)
-    _add_finding(db, service_a, cvss_score=5.0, confidence_score=100.0)  # 50.0
+    _add_finding(db, service_a, cvss_score=5.0, confidence_score=100.0)  # 0.5 * 50 = 25.0
     service_b = _add_service(db, asset, port=8080)
     _add_misconfig(db, service_b, severity="HIGH")  # 70.0 * 0.6 = 42.0
 
     score_assets(db, scan, [asset])
 
     db.refresh(asset)
-    # Noisy-OR: 1 - (1 - 0.5)(1 - 0.42) = 1 - 0.5 * 0.58 = 0.71 -> 71.0.
-    assert asset.risk_score == 71.0
+    # Noisy-OR: 1 - (1 - 0.25)(1 - 0.42) = 1 - 0.75 * 0.58 = 0.565 -> 56.5.
+    assert asset.risk_score == 56.5
     assert asset.risk_tier == "HIGH"

@@ -3,7 +3,17 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -115,5 +125,17 @@ class Finding(Base):
     # and this phase doesn't add one; validated_at answers one specific
     # question, not "was this row touched".
     validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # --- Phase 10 additions --- (NULL = not enriched: run predates Phase 10
+    # or the threat-intel fetch failed; see Scan.threat_intel_failed)
+    # In CISA's Known Exploited Vulnerabilities catalog.
+    kev: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # FIRST EPSS: probability of exploitation in the next 30 days, and its
+    # percentile. NULL with kev set = FIRST has no score for this CVE.
+    epss: Mapped[float | None] = mapped_column(Float, nullable=True)
+    epss_percentile: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # A feature the CVE's description requires (e.g. "http2", "tls") that
+    # VulnSight saw no evidence of on this asset. Not proof it's absent.
+    unverified_prerequisite: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
     service: Mapped["Service"] = relationship(back_populates="findings")

@@ -42,3 +42,17 @@ RISK_TIER_BANDS: list[tuple[float, str]] = [
     (0.01, "LOW"),
 ]
 RISK_TIER_FLOOR = "NONE"
+
+# --- Phase 10: exploit likelihood + applicability (fixed in advance in
+# benchmarks/phase10-preregistration.md; changing them after a benchmark
+# run must be disclosed there). Both terms are on the same 0-100 scale:
+# severity = CVSS x 10 (or the fallback weight), exploit = 100 x
+# (1.0 if in CISA KEV, else EPSS probability, else 0.0).
+W_SEVERITY = 0.5
+W_EXPLOIT = 0.5
+KEV_EXPLOIT_LIKELIHOOD = 1.0
+# Unknown EPSS (no score, or not enriched) = no evidence of exploitation.
+UNKNOWN_EPSS = 0.0
+# Multiplier when the CVE names a prerequisite feature VulnSight never
+# observed on the target (Finding.unverified_prerequisite).
+APPLICABILITY_DISCOUNT = 0.3

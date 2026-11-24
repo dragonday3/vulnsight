@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import SeverityBadge from "@/components/SeverityBadge";
 import ValidationBadge from "@/components/ValidationBadge";
+import ExploitSignals from "@/components/ExploitSignals";
 import PrintButton from "@/components/PrintButton";
 import { getScanReport } from "@/lib/api/scans";
 import type { ReportRead } from "@/lib/types/report";
@@ -128,6 +129,12 @@ export default async function ScanReportPage({
             <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
               CVE correlation incomplete: {summary.cve_correlation?.lookups_failed} of {summary.cve_correlation?.lookups_total} CVE lookups did not complete
               (failed, not stored, or truncated). Services showing no CVEs may not be clean.
+            </p>
+          )}
+          {summary.cve_correlation?.threat_intel_failed != null && summary.cve_correlation?.threat_intel_failed > 0 && (
+            <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Exploit data incomplete: {summary.cve_correlation?.threat_intel_failed} KEV/EPSS fetch(es) failed. Affected CVEs rank as
+              having no exploit evidence.
             </p>
           )}
         </section>
@@ -271,6 +278,11 @@ export default async function ScanReportPage({
                                     <span className="text-xs text-zinc-500">
                                       Confidence: {Math.round(finding.confidence_score)}/100
                                     </span>
+                                    <ExploitSignals
+                                      kev={finding.kev}
+                                      epss={finding.epss}
+                                      unverifiedPrerequisite={finding.unverified_prerequisite}
+                                    />
                                     <ValidationBadge state={finding.validation_state} />
                                   </div>
                                 ))}

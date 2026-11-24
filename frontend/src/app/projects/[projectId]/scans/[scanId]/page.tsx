@@ -4,6 +4,7 @@ import StatusBadge from "@/components/StatusBadge";
 import FingerprintBadge from "@/components/FingerprintBadge";
 import SeverityBadge from "@/components/SeverityBadge";
 import ValidationBadge from "@/components/ValidationBadge";
+import ExploitSignals from "@/components/ExploitSignals";
 import FindingValidationControl from "@/components/FindingValidationControl";
 import { getScan, getScanAssets } from "@/lib/api/scans";
 import { listTargets } from "@/lib/api/targets";
@@ -143,6 +144,12 @@ export default async function ScanResultsPage({
               (failed, not stored, or truncated). Services showing no CVEs may not be clean.
             </p>
           )}
+          {scan.threat_intel_failed != null && scan.threat_intel_failed > 0 && (
+            <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Exploit data incomplete: {scan.threat_intel_failed} KEV/EPSS fetch(es) failed. Affected CVEs rank as
+              having no exploit evidence.
+            </p>
+          )}
 
           <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
             <div>
@@ -264,6 +271,11 @@ export default async function ScanResultsPage({
                                   <span className="text-xs text-zinc-500">
                                     Confidence: {Math.round(finding.confidence_score)}/100
                                   </span>
+                                  <ExploitSignals
+                                    kev={finding.kev}
+                                    epss={finding.epss}
+                                    unverifiedPrerequisite={finding.unverified_prerequisite}
+                                  />
                                   <ValidationBadge state={finding.validation_state} />
                                   <FindingValidationControl finding={finding} />
                                 </div>

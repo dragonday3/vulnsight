@@ -32,6 +32,8 @@ class ScanRead(BaseModel):
     # Null until CORRELATING finishes; failed > 0 = correlation incomplete.
     cve_lookups_total: int | None
     cve_lookups_failed: int | None
+    # Phase 10: failed KEV/EPSS fetches; null = not run.
+    threat_intel_failed: int | None
 
 
 class ScanStatusRead(BaseModel):

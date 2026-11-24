@@ -41,6 +41,8 @@ export interface ScanRead {
   // no findings because they failed, so "no CVEs" there is not a clean result.
   cve_lookups_total: number | null;
   cve_lookups_failed: number | null;
+  // Phase 10: failed KEV/EPSS fetches; null = not run.
+  threat_intel_failed: number | null;
 }
 
 export interface ScanCreate {

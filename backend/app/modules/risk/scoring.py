@@ -8,11 +8,16 @@ concrete float or str; nothing here raises on a well-typed input.
 from app.models.finding import Finding, FindingValidationState
 from app.models.misconfiguration import Misconfiguration
 from app.modules.risk.scoring_config import (
+    APPLICABILITY_DISCOUNT,
     CVSS_TO_100_SCALE,
+    KEV_EXPLOIT_LIKELIHOOD,
     MISCONFIG_RELATIVE_WEIGHT,
     RISK_TIER_BANDS,
     RISK_TIER_FLOOR,
     SEVERITY_FALLBACK_WEIGHT,
+    UNKNOWN_EPSS,
+    W_EXPLOIT,
+    W_SEVERITY,
 )
 
 
@@ -24,16 +29,29 @@ def score_finding_contribution(finding: Finding) -> float:
     the "how sure are we" signal, and double-counting validation on top
     of it would conflate two mechanisms dev notes is explicit about
     keeping independent.
+
+    Phase 10: half severity, half exploit likelihood (CISA KEV, else EPSS
+    probability, else 0), both on 0-100; discounted when the CVE needs a
+    prerequisite feature never observed on the target. Constants are
+    pre-registered in benchmarks/phase10-preregistration.md.
     """
     if finding.validation_state == FindingValidationState.FALSE_POSITIVE:
         return 0.0
-    base = (
+    severity = (
         finding.cvss_score * CVSS_TO_100_SCALE
         if finding.cvss_score is not None
         else SEVERITY_FALLBACK_WEIGHT.get(finding.severity, 0.0)
     )
-    base = min(base, 100.0)
-    return base * (finding.confidence_score / 100.0)
+    severity = min(severity, 100.0)
+    if finding.kev:
+        exploit = KEV_EXPLOIT_LIKELIHOOD
+    elif finding.epss is not None:
+        exploit = finding.epss
+    else:
+        exploit = UNKNOWN_EPSS
+    base = W_SEVERITY * severity + W_EXPLOIT * 100.0 * exploit
+    applicability = APPLICABILITY_DISCOUNT if finding.unverified_prerequisite else 1.0
+    return base * (finding.confidence_score / 100.0) * applicability
 
 
 def score_misconfiguration_contribution(misconfig: Misconfiguration) -> float:

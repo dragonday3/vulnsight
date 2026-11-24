@@ -27,8 +27,14 @@ def _finding(
     severity: str,
     confidence_score: float,
     validation_state: FindingValidationState = FindingValidationState.UNVALIDATED,
+    kev: bool | None = None,
+    epss: float | None = None,
+    unverified_prerequisite: str | None = None,
 ) -> Finding:
     return Finding(
+        kev=kev,
+        epss=epss,
+        unverified_prerequisite=unverified_prerequisite,
         cve_id="CVE-2021-41773",
         matched_cpe="cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*",
         severity=severity,
@@ -53,17 +59,17 @@ def _misconfig(severity: str) -> Misconfiguration:
 
 
 def test_finding_cvss_present_uses_cvss_not_severity_fallback() -> None:
-    # cvss 7.5 * 10 = 75.0 at full confidence. The severity string is
-    # deliberately CRITICAL (fallback weight 90.0) to prove the CVSS branch
-    # wins whenever cvss_score is present.
+    # cvss 7.5 * 10 = 75.0 severity, half-weighted (no exploit data) = 37.5.
+    # The severity string is deliberately CRITICAL (fallback weight 90.0) to
+    # prove the CVSS branch wins whenever cvss_score is present.
     finding = _finding(cvss_score=7.5, severity="CRITICAL", confidence_score=100.0)
-    assert score_finding_contribution(finding) == pytest.approx(75.0)
+    assert score_finding_contribution(finding) == pytest.approx(37.5)
 
 
 def test_finding_cvss_absent_falls_back_to_severity_weight() -> None:
-    # No cvss_score: HIGH -> SEVERITY_FALLBACK_WEIGHT["HIGH"] == 70.0.
+    # No cvss_score: HIGH -> SEVERITY_FALLBACK_WEIGHT["HIGH"] == 70.0, x0.5.
     finding = _finding(cvss_score=None, severity="HIGH", confidence_score=100.0)
-    assert score_finding_contribution(finding) == pytest.approx(70.0)
+    assert score_finding_contribution(finding) == pytest.approx(35.0)
 
 
 def test_finding_unknown_severity_with_no_cvss_contributes_zero() -> None:
@@ -74,14 +80,14 @@ def test_finding_unknown_severity_with_no_cvss_contributes_zero() -> None:
 def test_finding_cvss_contribution_clamped_to_100() -> None:
     # cvss_score is 0-10 by NVD contract, but the function's documented
     # 0-100 range must hold even for an out-of-contract value.
-    finding = _finding(cvss_score=12.0, severity="CRITICAL", confidence_score=100.0)
+    finding = _finding(cvss_score=12.0, severity="CRITICAL", confidence_score=100.0, kev=True)
     assert score_finding_contribution(finding) == pytest.approx(100.0)
 
 
 def test_finding_confidence_discount_applied() -> None:
-    # cvss 8.0 -> base 80.0; confidence 50 halves it to 40.0.
+    # cvss 8.0 -> severity 80.0 -> base 40.0; confidence 50 halves it to 20.0.
     finding = _finding(cvss_score=8.0, severity="HIGH", confidence_score=50.0)
-    assert score_finding_contribution(finding) == pytest.approx(40.0)
+    assert score_finding_contribution(finding) == pytest.approx(20.0)
 
 
 @pytest.mark.parametrize(
@@ -122,7 +128,44 @@ def test_unvalidated_and_confirmed_contribute_identically() -> None:
         validation_state=FindingValidationState.CONFIRMED,
     )
     assert score_finding_contribution(unvalidated) == score_finding_contribution(confirmed)
-    assert score_finding_contribution(confirmed) == pytest.approx(64.0 * 0.8)
+    assert score_finding_contribution(confirmed) == pytest.approx(32.0 * 0.8)
+
+
+# --- Phase 10: exploit likelihood + applicability --------------------------
+
+
+def test_kev_counts_as_certain_exploitation() -> None:
+    # 0.5 * 75 + 0.5 * 100 * 1.0 = 87.5; KEV wins over a low EPSS.
+    finding = _finding(cvss_score=7.5, severity="HIGH", confidence_score=100.0, kev=True, epss=0.01)
+    assert score_finding_contribution(finding) == pytest.approx(87.5)
+
+
+def test_epss_probability_used_when_not_in_kev() -> None:
+    # 0.5 * 75 + 0.5 * 100 * 0.4 = 57.5
+    finding = _finding(cvss_score=7.5, severity="HIGH", confidence_score=100.0, kev=False, epss=0.4)
+    assert score_finding_contribution(finding) == pytest.approx(57.5)
+
+
+def test_exploited_lower_cvss_outranks_unexploited_higher_cvss() -> None:
+    exploited = _finding(cvss_score=7.5, severity="HIGH", confidence_score=100.0, kev=True)
+    unexploited = _finding(
+        cvss_score=9.8, severity="CRITICAL", confidence_score=100.0, kev=False, epss=0.01
+    )
+    assert score_finding_contribution(exploited) > score_finding_contribution(unexploited)
+
+
+def test_unverified_prerequisite_discounts_contribution() -> None:
+    plain = _finding(cvss_score=9.8, severity="CRITICAL", confidence_score=100.0, epss=0.2)
+    flagged = _finding(
+        cvss_score=9.8,
+        severity="CRITICAL",
+        confidence_score=100.0,
+        epss=0.2,
+        unverified_prerequisite="http2",
+    )
+    assert score_finding_contribution(flagged) == pytest.approx(
+        score_finding_contribution(plain) * 0.3
+    )
 
 
 # --- score_misconfiguration_contribution ----------------------------------

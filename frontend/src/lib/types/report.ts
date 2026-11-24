@@ -16,7 +16,11 @@ export interface ReportSummary {
   target: { value: string; target_type: string };
   risk: { score: number | null; tier: Severity | null };
   // Absent on reports generated before this field existed.
-  cve_correlation?: { lookups_total: number | null; lookups_failed: number | null };
+  cve_correlation?: {
+    lookups_total: number | null;
+    lookups_failed: number | null;
+    threat_intel_failed?: number | null;
+  };
   findings_summary: {
     total: number;
     by_severity: Record<Severity, number>;
@@ -42,6 +46,10 @@ export interface ReportSummary {
         cvss_score: number | null;
         confidence_score: number;
         validation_state: ValidationState;
+        // Phase 10; absent on older reports.
+        kev?: boolean | null;
+        epss?: number | null;
+        unverified_prerequisite?: string | null;
       }>;
       misconfigurations: Array<{
         check_id: string;

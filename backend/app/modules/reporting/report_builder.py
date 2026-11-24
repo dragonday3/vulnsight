@@ -65,6 +65,10 @@ def build_report_summary(scan: Scan, assets: list[Asset]) -> dict:
                         "cvss_score": finding.cvss_score,
                         "confidence_score": finding.confidence_score,
                         "validation_state": state_key,
+                        # Phase 10 (null = not enriched)
+                        "kev": finding.kev,
+                        "epss": finding.epss,
+                        "unverified_prerequisite": finding.unverified_prerequisite,
                     }
                 )
 
@@ -114,6 +118,8 @@ def build_report_summary(scan: Scan, assets: list[Asset]) -> dict:
         "cve_correlation": {
             "lookups_total": scan.cve_lookups_total,
             "lookups_failed": scan.cve_lookups_failed,
+            # Phase 10: failed KEV/EPSS fetches (null = not run).
+            "threat_intel_failed": scan.threat_intel_failed,
         },
         "findings_summary": {
             "total": findings_total,

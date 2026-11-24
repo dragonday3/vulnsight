@@ -73,6 +73,9 @@ class Scan(Base):
     # on some services is NOT a clean result.
     cve_lookups_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cve_lookups_failed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Phase 10: failed KEV/EPSS fetches this scan (NULL = not run). > 0 means
+    # some findings have NULL kev/epss and rank as "no exploit evidence".
+    threat_intel_failed: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     project: Mapped["Project"] = relationship(back_populates="scans")
     target: Mapped["Target"] = relationship()

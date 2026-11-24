@@ -24,6 +24,11 @@ class FindingRead(BaseModel):
     validation_state: FindingValidationState
     validation_note: str | None
     validated_at: datetime | None
+    # --- Phase 10 additions (null = not enriched) ---
+    kev: bool | None
+    epss: float | None
+    epss_percentile: float | None
+    unverified_prerequisite: str | None
 
 
 class FindingValidationUpdate(BaseModel):

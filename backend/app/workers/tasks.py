@@ -20,6 +20,7 @@ from app.modules.misconfiguration.analyzer import analyze_services
 from app.modules.reporting.report_generator import generate_report
 from app.modules.risk.risk_scorer import score_assets
 from app.modules.vulnerability.correlator import correlate_services
+from app.modules.vulnerability.threat_intel import enrich_findings
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -312,6 +313,22 @@ def run_scan_task(scan_id: str) -> None:
                 logger.exception(
                     "run_scan_task: scan %s could not record correlation failure", scan_id
                 )
+
+        # Phase 10, still inside CORRELATING (no new stage): KEV/EPSS and the
+        # applicability flag on the findings just written. Best-effort; the
+        # failed-fetch count is recorded so missing exploit data is visible.
+        try:
+            redis_client = redis.Redis.from_url(get_settings().REDIS_URL)
+            scan.threat_intel_failed = enrich_findings(db, redis_client, services)
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("run_scan_task: scan %s threat-intel enrichment failed", scan_id)
+            try:
+                scan.threat_intel_failed = 1
+                db.commit()
+            except Exception:
+                db.rollback()
 
         # Step 10.5 (Phase 7): RISK_ANALYSIS. Same best-effort shape as Steps
         # 9/9.5/10: scoring failures must never fail the scan, so any

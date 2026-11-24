@@ -31,6 +31,11 @@ export interface FindingRead {
   validation_state: ValidationState;
   validation_note: string | null;
   validated_at: string | null;
+  // --- Phase 10 additions (null = not enriched) ---
+  kev: boolean | null;
+  epss: number | null;
+  epss_percentile: number | null;
+  unverified_prerequisite: string | null;
 }
 
 // Body for PATCH /findings/{id}. validation_note is always optional and is
