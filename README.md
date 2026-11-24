@@ -11,6 +11,7 @@ VulnSight discovers what is running on a host, matches it to known CVEs, checks 
 - **6-stage asynchronous scan pipeline** run by Celery workers: discovery → service fingerprinting → misconfiguration analysis → CVE correlation → risk analysis → report generation
 - **Discovery:** native asyncio port scanner, or Nmap `-sV` service/version detection (per-scan setting)
 - **CVE correlation:** fingerprinted services → CPE 2.3 → [NIST NVD CVE API](https://nvd.nist.gov/developers/vulnerabilities); parses CVSS v4.0, v3.1, v3.0 and v2 metrics; 7-day CVE cache in PostgreSQL
+- **Correlation completeness:** each scan records how many CVE lookups failed or weren't stored, and the scan and report pages warn when the "no CVEs" result for a service isn't a clean one
 - **Shared NVD rate limiting:** a Redis + Lua atomic sliding-window limiter keeps every worker process within NVD's public limit of 5 requests per 30 seconds
 - **Evidence confidence (0–100):** Nmap-probed service matches always outrank port-table guesses
 - **Analyst validation:** findings are `unvalidated`, `confirmed` or `false_positive`; false positives drop out of risk scoring
@@ -43,6 +44,64 @@ flowchart LR
 4. **Tiers:** >= 75 CRITICAL, >= 50 HIGH, >= 25 MEDIUM, > 0 LOW, 0 NONE.
 
 The weights live in `backend/app/modules/risk/scoring_config.py`.
+
+## Benchmark
+
+<!-- PROVISIONAL: numbers below are from run 4 (9c3f6aa); replace with the final-commit run before publishing. -->
+
+VulnSight was measured against 8 deliberately vulnerable
+[vulhub](https://github.com/vulhub/vulhub) containers:
+- each image is pinned by digest and documents a known CVE;
+- each is scanned with Nmap on the app's internal Docker network.
+
+The expected CVE per target was committed in
+[`benchmarks/expected.json`](benchmarks/expected.json) before the first
+scan. The harness and all result files are in [`benchmarks/`](benchmarks/).
+
+**Result: 6 of 8 documented CVEs detected.** Both misses trace to gaps in
+NVD's own configuration data:
+- CVE-2017-12615 is listed only for Tomcat 7.0.x, though vulhub
+  demonstrates it on 8.5.19.
+- CVE-2012-2122 is listed for MySQL up to 5.5.21, though the advisory
+  covers releases before 5.5.24.
+
+| Target | Documented CVE | Detected | Rank (CVSS-only / VulnSight) |
+|---|---|---|---|
+| Apache httpd 2.4.49 | CVE-2021-41773 | yes | 1 / 1 of 88 |
+| Apache Tomcat 8.5.19 | CVE-2017-12615 | no: not in NVD's config for 8.5.x\* | - |
+| Apache Tomcat 9.0.30 | CVE-2020-1938 | yes | 1 / 1 of 77 |
+| nginx 1.13.2 | CVE-2017-7529 | yes | 3 / 3 of 15 |
+| Elasticsearch 1.4.2 | CVE-2015-1427 | yes | 1 / 1 of 15 |
+| Elasticsearch 1.1.1 | CVE-2014-3120 | yes | 3 / 3 of 17 |
+| Jetty 9.4.37 | CVE-2021-28164 | yes | 12 / 12 of 26 |
+| MySQL 5.5.23 | CVE-2012-2122 | no: not in NVD's config for 5.5.23\* | - |
+
+\* Classified as "not version-matchable" by checking NVD after the run,
+so 6 of 6 version-matchable is a post-hoc figure, not the headline.
+
+**Disclosure: these numbers are benchmark-informed.**
+- The first run scored **2 of 8**. Investigating it found four real bugs,
+  each fixed in its own commit:
+  - nmap and NVD use different vendor names for nginx, Elasticsearch,
+    Jetty and MySQL;
+  - the NVD client's 10 s timeout was shorter than NVD's ~13 s response
+    time;
+  - full-length CVSS v4.0 vectors overflowed a 100-character column,
+    silently dropping every CVE for that product;
+  - none of these failures were visible on the scan.
+- Every run is kept as recorded in `benchmarks/results/`. None of them is
+  a blind or held-out measurement.
+
+**Ranking is not better than CVSS yet.**
+- CVSS-only and VulnSight ordering were identical (mean rank of detected
+  CVEs 3.5 for both), because every finding came from a direct Nmap probe
+  at the same confidence.
+- A [manual audit](benchmarks/results/2026-11-24-run4-audit.md) of each
+  target's top 10 findings rated 15 of 80 applicable to the container's
+  actual configuration, 48 not applicable and 17 unclear. Most
+  version-matched CVEs need an optional module, TLS or an auth scheme the
+  target doesn't use.
+- Exploit-likelihood signals (CISA KEV, EPSS) are the next step.
 
 ## API
 
@@ -204,6 +263,15 @@ never built fails on every dynamic route with `Cannot find name
 - Prioritisation uses CVSS and evidence confidence; exploit likelihood (EPSS) and CISA KEV are not used yet.
 - Reports are JSON and a web page; no PDF export yet.
 - Scoring weights are first-pass judgement calls, not tuned against large real-world scan data.
+- CVE matching is version-based. It can't tell whether the vulnerable
+  module or feature is enabled, so most matches are version-applicable
+  rather than exploitable (see Benchmark).
+- The NVD client fetches one page of 200 CVEs per CPE. Products with more
+  (e.g. Oracle MySQL 5.5.23, 421 CVEs) are truncated, and this is logged.
+- nmap-to-NVD vendor renames are a small hand-kept table
+  (`cpe_utils.nvd_aliases`). Other renamed products will still be missed
+  until they are added.
+- Nmap scans the top 1000 ports only.
 
 ## Responsible Use
 
