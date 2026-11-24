@@ -35,3 +35,24 @@ itself. **Run 6 is the published result.**
 
 All fixes behind runs 2–4 were made after seeing earlier runs on the
 same targets. **These are benchmark-informed numbers, not blind ones.**
+
+## Phase 10 (exploit likelihood + applicability)
+
+Pre-registration: [`../phase10-preregistration.md`](../phase10-preregistration.md),
+committed before any Phase 10 code.
+
+| Run | App code | Valid | What happened |
+|---|---|---|---|
+| [2026-11-24-1910](2026-11-24-1910.md) | `ed38b95` | no | 11 scans queued at once. NVD answered 429 to one lookup, and the rate limiter's 60 s wait expired for another. Its label sheet was discarded unused. |
+| [2026-11-24-1914](2026-11-24-1914.md) | `ed38b95`; harness `f12b09c` runs scans one at a time | **yes** | Published Phase 10 result. |
+
+Files for the published run (all under `2026-11-24-1914`):
+
+| File | What it holds | Committed |
+|---|---|---|
+| [labelsheet](2026-11-24-1914-labelsheet.md) | The blind sheet | Before labelling |
+| [labeller-facts](2026-11-24-1914-labeller-facts.md) | The raw container facts the labeller was given | With the labels |
+| [labels](2026-11-24-1914-labels.json) | The labels, plus a `method` note including a Jetty facts correction | Before scoring |
+| [metrics](2026-11-24-1914-metrics.md) | M1–M4 and M2-heldout, computed by `../score_labels.py` | After the labels |
+
+Corrections are in [ERRATA.md](ERRATA.md).

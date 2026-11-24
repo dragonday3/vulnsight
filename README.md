@@ -18,6 +18,8 @@ VulnSight discovers what is running on a host, matches it to known CVEs, checks 
 - **Discovery:** native asyncio port scanner, or Nmap `-sV` service/version detection (per-scan setting)
 - **CVE correlation:** fingerprinted services → CPE 2.3 → [NIST NVD CVE API](https://nvd.nist.gov/developers/vulnerabilities); parses CVSS v4.0, v3.1, v3.0 and v2 metrics; 7-day CVE cache in PostgreSQL
 - **Correlation completeness:** each scan records how many CVE lookups did not complete (failed, not stored, or truncated), and the scan and report pages warn when the count is above zero
+- **Exploit likelihood:** every matched CVE is enriched with [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) membership and its [FIRST EPSS](https://www.first.org/epss/) score (both cached for 24 h), and these drive half of each finding's risk contribution
+- **Applicability flags:** a CVE whose description names a prerequisite feature (HTTP/2, TLS, mod_proxy, DIGEST auth, ...) that wasn't observed on the target is flagged "requires X (not observed)" and discounted; it stays visible
 - **Shared NVD rate limiting:** a Redis + Lua atomic sliding-window limiter keeps every worker process within NVD's public limit of 5 requests per 30 seconds
 - **Evidence confidence (0–100):** Nmap-probed service matches always outrank port-table guesses
 - **Analyst validation:** findings are `unvalidated`, `confirmed` or `false_positive`; false positives drop out of risk scoring
@@ -27,7 +29,7 @@ VulnSight discovers what is running on a host, matches it to known CVEs, checks 
   - 12 sensitive exposed services (Telnet, FTP, SMB, RDP, VNC, Redis, MongoDB, Elasticsearch, Memcached, MySQL, PostgreSQL, Docker Engine API)
 - **Risk scoring:** per-asset and per-scan 0–100 score with CRITICAL / HIGH / MEDIUM / LOW tiers (see below); duplicate CVEs from overlapping CPE matches are counted once
 - **Reports:** per-scan summary (risk, findings by severity and validation state, per-asset/per-service CVEs and misconfigurations) via API and a report page
-- **Quality:** 271 test functions (389 pytest cases with parametrization); GitHub Actions CI runs pytest (with PostgreSQL, Redis and Nmap), ruff, black, mypy, and the Next.js lint/build
+- **Quality:** 291 test functions (423 pytest cases with parametrization); GitHub Actions CI runs pytest (with PostgreSQL, Redis and Nmap), ruff, black, mypy, and the Next.js lint/build
 
 ## Architecture
 
@@ -39,12 +41,19 @@ flowchart LR
     Q --> W["Celery worker"]
     W -- "Nmap / asyncio scan" --> T["Target hosts"]
     W -- "CVE lookups (rate-limited)" --> NVD["NIST NVD API"]
+    W -- "KEV catalog, EPSS scores" --> TI["CISA KEV / FIRST EPSS"]
     W --> DB
 ```
 
 ## How risk is scored
 
-1. **Per finding:** `contribution = CVSS (0-10) x 10 x confidence / 100`. A finding with no CVSS falls back to a severity weight (CRITICAL 90, HIGH 70, MEDIUM 40, LOW 15). False positives contribute 0.
+1. **Per finding:** `contribution = (0.5 x severity + 0.5 x 100 x exploit) x confidence / 100 x applicability`, where:
+   - `severity` = CVSS x 10, or a severity weight when there is no CVSS (CRITICAL 90, HIGH 70, MEDIUM 40, LOW 15);
+   - `exploit` = 1.0 if the CVE is in CISA KEV, else its EPSS probability, else 0;
+   - `applicability` = 0.3 when the CVE needs a prerequisite feature that wasn't observed on the target, else 1.0.
+
+   False positives contribute 0. These constants were fixed in advance in
+   [`benchmarks/phase10-preregistration.md`](benchmarks/phase10-preregistration.md).
 2. **Per misconfiguration:** the same severity weight x 0.6, since a misconfiguration is a weaker signal than a matched CVE.
 3. **Aggregation (noisy-OR):** treat each contribution as a probability *p* and combine `risk = 1 - (1 - p1)(1 - p2)...(1 - pn)`, scaled to 0-100. One severe issue dominates, and many small issues add up without exceeding 100. Assets are scored from their findings, and scans from their assets.
 4. **Tiers:** >= 75 CRITICAL, >= 50 HIGH, >= 25 MEDIUM, > 0 LOW, 0 NONE.
@@ -85,24 +94,29 @@ NVD's own configuration data:
 - In a [manual audit](benchmarks/results/2026-11-24-run6-audit.md) of
   each target's top 10 findings, done with the containers' actual config
   checked:
-  - 16 of 80 were applicable;
-  - 48 were not applicable;
+  - 15 of 80 were applicable;
+  - 49 were not applicable;
   - 16 were unclear.
+- One label in that audit was later found to be wrong and corrected (see
+  [errata](benchmarks/results/ERRATA.md)). The published totals were
+  16/48/16.
 - This is a limit of version-based CVE matching in general, not only
   VulnSight's.
 
 Ranks are shown as best–worst, because many CVEs share the same score.
-For example, CVE-2021-41773 is tied at CVSS 9.8 with 14 others.
+For example, CVE-2021-41773 is tied at CVSS 9.8 with 14 others. The
+VulnSight column is from the Phase 10 run (exploit likelihood +
+applicability, see below). In Phase 9 it was identical to CVSS-only.
 
-| Target | Documented CVE | Detected | Rank, CVSS-only | Rank, VulnSight |
+| Target | Documented CVE | Detected | Rank, CVSS-only | Rank, VulnSight (Phase 10) |
 |---|---|---|---|---|
-| Apache httpd 2.4.49 | CVE-2021-41773 | yes | 1–15 of 88 | 1–15 of 88 |
+| Apache httpd 2.4.49 | CVE-2021-41773 | yes | 1–15 of 88 | 1–2 of 88 |
 | Apache Tomcat 8.5.19 | CVE-2017-12615 | no: not in NVD's config for 8.5.x\* | - | - |
-| Apache Tomcat 9.0.30 | CVE-2020-1938 | yes | 1–9 of 77 | 1–9 of 77 |
-| nginx 1.13.2 | CVE-2017-7529 | yes | 3–8 of 15 | 3–8 of 15 |
-| Elasticsearch 1.4.2 | CVE-2015-1427 | yes | 1–2 of 15 | 1–2 of 15 |
-| Elasticsearch 1.1.1 | CVE-2014-3120 | yes | 3–4 of 17 | 3–4 of 17 |
-| Jetty 9.4.37 | CVE-2021-28164 | yes | 12–18 of 26 | 12–18 of 26 |
+| Apache Tomcat 9.0.30 | CVE-2020-1938 | yes | 1–9 of 77 | 1 of 77 |
+| nginx 1.13.2 | CVE-2017-7529 | yes | 3–8 of 15 | 1 of 15 |
+| Elasticsearch 1.4.2 | CVE-2015-1427 | yes | 1–2 of 15 | 1 of 15 |
+| Elasticsearch 1.1.1 | CVE-2014-3120 | yes | 3–4 of 17 | 2 of 17 |
+| Jetty 9.4.37 | CVE-2021-28164 | yes | 12–18 of 26 | 2 of 26 |
 | MySQL 5.5.23 | CVE-2012-2122 | no: not in NVD's config for 5.5.23\* | - | - |
 
 \* Classified as "not version-matchable" by checking NVD after the run,
@@ -128,12 +142,48 @@ truncation artefact.
 - Every run is kept as recorded in `benchmarks/results/`. None of them is
   a blind or held-out measurement.
 
-**Ranking is not better than CVSS yet.**
-- CVSS-only and VulnSight ordering were identical: mean rank of detected
-  documented CVEs was 3.5–9.3 for both. Every finding came from a direct
-  Nmap probe at the same confidence.
-- Ordering by exploit likelihood (CISA KEV, EPSS) is the next step. On
-  its own it reorders findings but can't drop the 48 that don't apply.
+### Phase 10: exploit likelihood and applicability
+
+Before any code was written, the following were committed in
+[`benchmarks/phase10-preregistration.md`](benchmarks/phase10-preregistration.md):
+- the scoring formula and its constants;
+- four metrics with pass/fail criteria;
+- 3 new **held-out** targets (nginx 1.4.2, php 5.4.1-cgi, postgres
+  9.6.7) that had never been scanned or audited.
+
+Applicability labels for CVEs not covered by the Phase 9 audit were made
+**blind**:
+- by a fresh-context agent;
+- from a sheet holding only each CVE's id and description, plus raw
+  container config facts;
+- with no score, rank, flag or rule list in view.
+
+Everything is in [`benchmarks/results/`](benchmarks/results/) under
+`2026-11-24-1914-*`. The [metrics file](benchmarks/results/2026-11-24-1914-metrics.md)
+reports them verbatim, including what failed:
+
+| Metric (pre-registered) | Result | Criterion |
+|---|---|---|
+| M1: rank of the documented CVEs | VulnSight mean 1.3–1.5 vs CVSS-only 3.5–9.3 | **met** |
+| M2: not-applicable CVEs in each top 10, original 8 targets (in-sample) | 25 of 80, down from 49; applicable up from 15 to 29 | **met** (N ≤ 36 and A ≥ 16). **Not met** under the pre-registered worst case (unclear counted as not applicable: 38) |
+| M2-heldout: same, on the 3 never-audited targets (out-of-sample) | VulnSight 20 not applicable, 4 applicable vs CVSS-only 24 and 5 | **not met** (needed ≤ 18 with applicable not lower) |
+| M3: harm | No documented CVE flagged or ranked worse; 135 of 726 matches flagged (21 rule features) | reported |
+| M4: recall | 6 of 8 kept; held-out 2 of 3 (php's CGI version isn't visible to Nmap) | **met** |
+
+**What this does and doesn't show.**
+- KEV/EPSS moves the documented, known-exploited CVEs to the top. That is
+  expected by construction: vulhub picks famous exploited CVEs, and their
+  KEV/EPSS values were seen before the weights were fixed. It shows the
+  ordering does what KEV/EPSS is meant to do, not general ranking skill.
+- The applicability rules cut not-applicable matches on the targets they
+  were written from. On the held-out targets they didn't pass the
+  pre-registered bar. Out of sample, the keyword rules help only a
+  little.
+- Only TLS is observable today. HTTP/2 and modules never are, so a
+  flagged CVE means "not seen", not "absent".
+- The first Phase 10 run was INVALID: concurrent scans hit NVD rate
+  limits. The harness now runs scans one at a time (harness change only),
+  and the valid run used the same app code.
 
 ## API
 
@@ -292,7 +342,8 @@ never built fails on every dynamic route with `Cannot find name
 ## Limitations and roadmap
 
 - No user accounts or authentication yet: run it locally or on a trusted network only.
-- Prioritisation uses CVSS and evidence confidence; exploit likelihood (EPSS) and CISA KEV are not used yet.
+- Applicability flags are keyword rules over NVD descriptions. Only TLS is observable (from Nmap). On held-out targets they didn't meet the pre-registered improvement bar (see Benchmark).
+- KEV/EPSS weighting ranks known-exploited CVEs first. The benchmark shows the mechanism works, not that it ranks better than CVSS in general.
 - Reports are JSON and a web page; no PDF export yet.
 - Scoring weights are first-pass judgement calls, not tuned against large real-world scan data.
 - CVE matching is version-based. It can't tell whether the vulnerable
