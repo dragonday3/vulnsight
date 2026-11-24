@@ -65,6 +65,19 @@ NVD's own configuration data:
 - CVE-2012-2122 is listed for MySQL up to 5.5.21, though the advisory
   covers releases before 5.5.24.
 
+**Most top-ranked matches don't apply to the target as configured.**
+- Version matching finds the documented CVE, but most top-ranked matches
+  need features the target doesn't enable (HTTP/2, mod_proxy, mod_lua,
+  TLS, DIGEST authentication).
+- In a [manual audit](benchmarks/results/2026-11-24-run4-audit.md) of
+  each target's top 10 findings, done with the containers' actual config
+  checked:
+  - 15 of 80 were applicable;
+  - 48 were not applicable;
+  - 17 were unclear.
+- This is a limit of version-based CVE matching in general, not only
+  VulnSight's.
+
 Ranks are shown as best–worst, because many CVEs share the same score.
 For example, CVE-2021-41773 is tied at CVSS 9.8 with 14 others.
 
