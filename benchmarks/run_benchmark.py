@@ -138,12 +138,24 @@ def lookup_names(assets: list[dict]) -> set[str]:
 
 
 def failed_lookups(assets: list[dict]) -> list[str]:
-    """A failed NVD lookup is never cached (cache.store refuses failures),
-    so a name with no cve_cache row after the scan is a failed lookup. The
-    API can't tell "no CVEs" from "lookup failed" (a known gap); this can.
+    """CPE names whose CVEs never became findings. The API can't tell "no
+    CVEs" from "lookup failed" (a known gap); this can, two ways:
+    - no cve_cache row: the NVD lookup failed (cache.store refuses failures);
+    - cached CVEs but no finding with that matched_cpe: persisting failed.
     """
+    persisted = {
+        f["matched_cpe"]
+        for a in assets for s in a.get("services", []) for f in s.get("findings", [])
+    }
+    failed = []
     with SessionLocal() as db:
-        return sorted(n for n in lookup_names(assets) if cache.get_cached(db, n) is None)
+        for name in sorted(lookup_names(assets)):
+            entry = cache.get_cached(db, name)
+            if entry is None:
+                failed.append(f"{name} (lookup failed)")
+            elif entry.cves and name not in persisted:
+                failed.append(f"{name} (findings not persisted)")
+    return failed
 
 
 def summary(targets: list[dict]) -> dict:
