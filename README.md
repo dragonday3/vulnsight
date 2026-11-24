@@ -47,8 +47,6 @@ The weights live in `backend/app/modules/risk/scoring_config.py`.
 
 ## Benchmark
 
-<!-- PROVISIONAL: numbers below are from run 4 (9c3f6aa); replace with the final-commit run before publishing. -->
-
 VulnSight was measured against 8 deliberately vulnerable
 [vulhub](https://github.com/vulhub/vulhub) containers:
 - each image is pinned by digest and documents a known CVE;
@@ -57,6 +55,15 @@ VulnSight was measured against 8 deliberately vulnerable
 The expected CVE per target was committed in
 [`benchmarks/expected.json`](benchmarks/expected.json) before the first
 scan. The harness and all result files are in [`benchmarks/`](benchmarks/).
+
+The numbers below come from
+[run 6](benchmarks/results/2026-11-24-run6.md):
+- it was the final-code run, with a cold CVE cache;
+- every NVD lookup succeeded and was stored;
+- 726 version-applicable CVEs were matched.
+
+Every earlier run is listed in the
+[results index](benchmarks/results/README.md).
 
 **Result: 6 of 8 documented CVEs detected.** Both misses trace to gaps in
 NVD's own configuration data:
@@ -69,12 +76,12 @@ NVD's own configuration data:
 - Version matching finds the documented CVE, but most top-ranked matches
   need features the target doesn't enable (HTTP/2, mod_proxy, mod_lua,
   TLS, DIGEST authentication).
-- In a [manual audit](benchmarks/results/2026-11-24-run4-audit.md) of
+- In a [manual audit](benchmarks/results/2026-11-24-run6-audit.md) of
   each target's top 10 findings, done with the containers' actual config
   checked:
-  - 15 of 80 were applicable;
+  - 16 of 80 were applicable;
   - 48 were not applicable;
-  - 17 were unclear.
+  - 16 were unclear.
 - This is a limit of version-based CVE matching in general, not only
   VulnSight's.
 
@@ -90,14 +97,12 @@ For example, CVE-2021-41773 is tied at CVSS 9.8 with 14 others.
 | Elasticsearch 1.4.2 | CVE-2015-1427 | yes | 1–2 of 15 | 1–2 of 15 |
 | Elasticsearch 1.1.1 | CVE-2014-3120 | yes | 3–4 of 17 | 3–4 of 17 |
 | Jetty 9.4.37 | CVE-2021-28164 | yes | 12–18 of 26 | 12–18 of 26 |
-| MySQL 5.5.23 | CVE-2012-2122 | no: not in NVD's config for 5.5.23\*† | - | - |
+| MySQL 5.5.23 | CVE-2012-2122 | no: not in NVD's config for 5.5.23\* | - | - |
 
 \* Classified as "not version-matchable" by checking NVD after the run,
 so 6 of 6 version-matchable is a post-hoc figure, not the headline.
-
-† In this run the MySQL lookup was truncated at 200 of NVD's 421 CVEs.
-The missing pages were checked by hand and don't contain CVE-2012-2122.
-The client now paginates.
+All 422 of MySQL's matched CVEs were fetched, so this miss isn't a
+truncation artefact.
 
 **Disclosure: these numbers are benchmark-informed.**
 - The first run scored **2 of 8**. Investigating it found four real bugs,
@@ -111,6 +116,9 @@ The client now paginates.
   - none of these failures were visible on the scan.
 - The review of these fixes found a fifth: lookups with more than 200
   CVEs were cut off. That one is fixed too (pagination).
+- One run at the final code (run 5) was marked INVALID. NVD
+  rate-limited one lookup, so ES 1.4.2's CVE was missed. It was repeated
+  with no code change, as run 6.
 - Every run is kept as recorded in `benchmarks/results/`. None of them is
   a blind or held-out measurement.
 
@@ -118,12 +126,8 @@ The client now paginates.
 - CVSS-only and VulnSight ordering were identical: mean rank of detected
   documented CVEs was 3.5–9.3 for both. Every finding came from a direct
   Nmap probe at the same confidence.
-- A [manual audit](benchmarks/results/2026-11-24-run4-audit.md) of each
-  target's top 10 findings rated 15 of 80 applicable to the container's
-  actual configuration, 48 not applicable and 17 unclear. Most
-  version-matched CVEs need an optional module, TLS or an auth scheme the
-  target doesn't use.
-- Exploit-likelihood signals (CISA KEV, EPSS) are the next step.
+- Ordering by exploit likelihood (CISA KEV, EPSS) is the next step. On
+  its own it reorders findings but can't drop the 48 that don't apply.
 
 ## API
 

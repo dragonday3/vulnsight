@@ -20,8 +20,8 @@ audit judges the containers as they actually ran.
 
 **Validity**: a later rule marks a run INVALID if any lookup failed,
 was truncated or wasn't stored (see `../README.md`). Applied after the
-fact, every run below is INVALID. Run 5, at the final commit, is the one
-meant to be published.
+fact, runs 1–4 are INVALID. Runs 5 and 6 were checked by the harness
+itself. **Run 6 is the published result.**
 
 | Run | Backend at | Detected | Valid (today's rule) | What happened |
 |---|---|---|---|---|
@@ -30,6 +30,8 @@ meant to be published.
 | 3, first attempt | `164d027` (+ 45 s timeout) | none | n/a | Scans ran, then the harness crashed before writing a file (`3d0c615` fixed it). |
 | [3](2026-11-24-run3.md) | `164d027` | 4/8 | no | nginx/jetty CVEs were fetched but not stored (CVSS v4 vector > varchar(100)). MySQL truncated 200/421. |
 | [4](2026-11-24-run4.md) | `cca95e2` (+ text column), harness `9c3f6aa` | 6/8 | no | MySQL truncated 200/421. Pages 2–3 were checked by hand and don't contain CVE-2012-2122. Both misses are NVD config gaps. [Manual audit](2026-11-24-run4-audit.md). |
+| [5](2026-11-24-run5.md) | `1caa203` (final: + pagination, completeness counts) | 5/8 | no (harness) | NVD answered 429 to the `elastic:elasticsearch:1.4.2` lookup, so ES 1.4.2's CVE was missed. Repeated with no code change. |
+| [6](2026-11-24-run6.md) | `1caa203` (same) | **6/8** | **yes** | All lookups live (cache rows at start: 0) and stored; MySQL fetched in full (422). [Manual audit](2026-11-24-run6-audit.md): 16 applicable, 48 not, 16 unclear of 80. |
 
 All fixes behind runs 2–4 were made after seeing earlier runs on the
 same targets. **These are benchmark-informed numbers, not blind ones.**
