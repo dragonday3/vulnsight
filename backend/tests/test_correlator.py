@@ -547,10 +547,16 @@ def test_outcome_counts_truncated_lookup_as_incomplete(
     assert outcome == CorrelationOutcome(attempted=1, failed=1)
     assert len(db.execute(select(Finding)).scalars().all()) == 1
 
+    # The cached row (1 of 421, below the page cap) predates pagination, so
+    # it is re-fetched instead of served; still truncated -> still failed.
     cached = _make_service(db, evidence={"cpe": [CPE22]}, port=2)
-    with patch.object(nvd_client, "fetch_cves_for_cpe") as mock_fetch:
+    with patch.object(
+        nvd_client,
+        "fetch_cves_for_cpe",
+        return_value=_fetch_result("CVE-2021-0001", total_results=421),
+    ) as mock_fetch:
         outcome = correlate_services(db, redis_client, [cached])
-    mock_fetch.assert_not_called()
+    mock_fetch.assert_called_once()
     assert outcome == CorrelationOutcome(attempted=1, failed=1)
 
 

@@ -586,3 +586,23 @@ def test_fetch_cves_stops_at_page_cap_and_reports_truncation(monkeypatch) -> Non
     assert result is not None
     assert len(result.cves) == NVD_MAX_PAGES * NVD_RESULTS_PER_PAGE
     assert result.total_results == 5000
+
+
+def test_fetch_cves_dedupes_a_cve_repeated_across_pages(monkeypatch) -> None:
+    """NVD's list can shift between page requests and repeat a CVE; keep one
+    copy, and report the lookup as incomplete (total > distinct fetched)."""
+
+    def _get(*_a: Any, **kw: Any) -> httpx.Response:
+        start = kw["params"].get("startIndex", 0)
+        # Page 2 starts one row early: CVE-2024-00199 appears on both pages.
+        return httpx.Response(
+            200, json=_page(start - 1 if start else 0, 200 if not start else 50, 250)
+        )
+
+    monkeypatch.setattr(httpx, "get", _get)
+    result = fetch_cves_for_cpe(CPE23, _FAKE_REDIS, rate_limiter=_NoopRateLimiter())
+
+    assert result is not None
+    ids = [c.cve_id for c in result.cves]
+    assert len(ids) == len(set(ids)) == 249
+    assert result.total_results == 250
