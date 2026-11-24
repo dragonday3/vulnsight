@@ -146,3 +146,16 @@ def test_enrich_findings_with_no_findings_makes_no_requests(
 
     monkeypatch.setattr(httpx, "get", _fail)
     assert threat_intel.enrich_findings(db, redis_client, [service]) == 0
+
+
+def test_epss_unreachable_stops_and_counts_remaining_batches(monkeypatch, redis_client) -> None:
+    monkeypatch.setattr(threat_intel, "EPSS_BATCH_SIZE", 1)
+    calls: list[int] = []
+
+    def _get(*_a: Any, **_kw: Any) -> httpx.Response:
+        calls.append(1)
+        raise httpx.ConnectError("unreachable")
+
+    monkeypatch.setattr(httpx, "get", _get)
+    scores, failed = threat_intel.epss_scores({"CVE-1", "CVE-2", "CVE-3"}, redis_client)
+    assert (scores, failed, len(calls)) == ({}, 3, 1)

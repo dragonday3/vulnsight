@@ -46,10 +46,28 @@ def test_first_unobserved_feature_is_reported_when_several_match() -> None:
     assert unverified_prerequisite(text, observed={"tls"}) == "http2"
 
 
-def test_observed_features_only_tls_from_service_names() -> None:
-    assert observed_features(["http", "ssl/http", None]) == {"tls"}
-    assert observed_features(["https"]) == {"tls"}
-    assert observed_features(["http", "mysql", None]) == set()
+def test_observed_features_tls_from_nmap_tunnel_or_name() -> None:
+    # nmap XML: <service name="http" tunnel="ssl">, the usual HTTPS shape.
+    assert observed_features([("http", {"tunnel": "ssl"}), ("mysql", None)]) == {"tls"}
+    assert observed_features([("https", None)]) == {"tls"}
+    assert observed_features([("http", {"product": "nginx"}), (None, None)]) == set()
+
+
+@pytest.mark.parametrize(
+    ("description", "expected"),
+    [
+        # Review-found false positives: must NOT match these rules.
+        ("A malicious server-side template can execute code.", None),
+        ("The XML entity resolver allows XXE.", None),
+        # Must match.
+        ("Issue in nginx resolver: forge UDP packets from the DNS server.", "dns_resolver"),
+        ("Overflow in autoindex date handling.", "autoindex"),
+        ("Bug in mod_ssl renegotiation.", "tls"),
+        ("A buffer is released on a gzip error when inflating a request body.", "gzip"),
+    ],
+)
+def test_rule_precision_cases(description: str, expected: str | None) -> None:
+    assert unverified_prerequisite(description, observed=set()) == expected
 
 
 def test_rule_counts_are_reported() -> None:

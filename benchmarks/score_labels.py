@@ -33,7 +33,7 @@ def score(run: dict, known: dict, new: dict) -> tuple[str, dict]:
 
     # M1: ranking.
     cv, vs = s["mean_rank_cvss_only"], s["mean_rank_vulnsight"]
-    m1 = vs[1] is not None and cv[1] is not None and vs[1] < cv[1]
+    m1 = vs[1] is not None and cv[1] is not None and vs[1] < cv[1] and s["valid"]
     out += ["## M1: ranking", "",
             f"Mean tie-aware rank of detected documented CVEs: CVSS-only {cv[0]}-{cv[1]}, "
             f"VulnSight {vs[0]}-{vs[1]}. Criterion (VulnSight worst < CVSS-only worst): "
@@ -58,7 +58,8 @@ def score(run: dict, known: dict, new: dict) -> tuple[str, dict]:
         rows.append(f"| {t['host']} | {c['A']} | {c['N']} | {c['U']} |")
     total = _counts(prev + newly)
     wc = _counts(worst)
-    m2 = total["N"] <= 36 and total["A"] >= 16
+    unlabelled = "?" in prev + newly
+    m2 = total["N"] <= 36 and total["A"] >= 16 and s["valid"] and not unlabelled
     out += ["## M2: applicability, 8 original targets (in-sample)", "",
             "| Target | A | N | U |", "|---|---|---|---|", *rows,
             f"| **Total** | **{total['A']}** | **{total['N']}** | **{total['U']}** |", "",
@@ -84,7 +85,16 @@ def score(run: dict, known: dict, new: dict) -> tuple[str, dict]:
             hrows.append(f"| {t['host']} | {cv_['A']}/{cv_['N']}/{cv_['U']} | "
                          f"{cc_['A']}/{cc_['N']}/{cc_['U']} |")
         tv, tc = _counts(hv), _counts(hc)
-        m2h = tv["N"] <= 0.75 * tc["N"] and tv["A"] >= tc["A"] and tc["N"] > 0
+        # tc["N"] > 0: with no not-applicable CVEs in the CVSS-only baseline
+        # there is nothing to reduce, so no claim (stricter than the
+        # pre-registration; disclosed in the results).
+        m2h = (
+            tv["N"] <= 0.75 * tc["N"]
+            and tv["A"] >= tc["A"]
+            and tc["N"] > 0
+            and s["valid"]
+            and "?" not in hv + hc
+        )
         out += ["## M2-heldout: applicability, 3 never-audited targets (out-of-sample)", "",
                 "| Target | VulnSight top 10 A/N/U | CVSS-only top 10 A/N/U |", "|---|---|---|",
                 *hrows,
@@ -104,9 +114,10 @@ def score(run: dict, known: dict, new: dict) -> tuple[str, dict]:
             if d.get("unverified_prerequisite"):
                 harms.append(f"{d['cve']} on {t['host']}: flagged "
                              f"({d['unverified_prerequisite']})")
-            if d["rank_vulnsight"][1] > d["rank_cvss"][1]:
-                harms.append(f"{d['cve']} on {t['host']}: worst rank {d['rank_vulnsight'][1]} "
-                             f"vs CVSS-only {d['rank_cvss'][1]}")
+            rv, rc = d["rank_vulnsight"], d["rank_cvss"]
+            if rv[0] > rc[0] or rv[1] > rc[1]:
+                harms.append(f"{d['cve']} on {t['host']}: rank {rv[0]}-{rv[1]} "
+                             f"vs CVSS-only {rc[0]}-{rc[1]}")
     rules = run.get("applicability_rules", {})
     out += ["## M3: harm and flag rate", "",
             *(f"- {h}" for h in harms or ["No detected documented CVE was flagged or ranked worse."]),

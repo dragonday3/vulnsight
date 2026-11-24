@@ -137,6 +137,13 @@ def target_metrics(expected: dict, assets: list[dict]) -> dict:
             for f in top
         ],
         "top_by_cvss": [f.cve_id for f in top_cvss],
+        # Findings tied on CVSS with the 10th CVSS-only entry but left out by
+        # the CVE-id tiebreak (disclosed: the baseline list is one choice).
+        "cvss_cutoff_ties_excluded": (
+            sum(1 for f in main_fs if cvss_score_of(f) == cvss_score_of(top_cvss[-1]))
+            - sum(1 for f in top_cvss if cvss_score_of(f) == cvss_score_of(top_cvss[-1]))
+            if len(top_cvss) == TOP_N_AUDIT else 0
+        ),
         # Full descriptions of the main service's findings, for label sheets.
         "descriptions": {f.cve_id: f.description or "" for f in main_fs},
         # Pre-registered M3: how often the prerequisite discount applies.

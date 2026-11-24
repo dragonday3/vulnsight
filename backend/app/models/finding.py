@@ -131,7 +131,8 @@ class Finding(Base):
     # In CISA's Known Exploited Vulnerabilities catalog.
     kev: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     # FIRST EPSS: probability of exploitation in the next 30 days, and its
-    # percentile. NULL with kev set = FIRST has no score for this CVE.
+    # percentile. NULL = FIRST has no score, or the EPSS fetch failed
+    # (then Scan.threat_intel_failed > 0).
     epss: Mapped[float | None] = mapped_column(Float, nullable=True)
     epss_percentile: Mapped[float | None] = mapped_column(Float, nullable=True)
     # A feature the CVE's description requires (e.g. "http2", "tls") that

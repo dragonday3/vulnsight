@@ -135,6 +135,9 @@ class NmapPortScanner:
                 extrainfo = service_el.get("extrainfo")
                 method = service_el.get("method")
                 conf = service_el.get("conf")
+                # "ssl" when nmap reached the service through TLS (its XML
+                # never uses the "ssl/http" form of normal output).
+                tunnel = service_el.get("tunnel")
                 cpe = tuple(cpe_el.text for cpe_el in service_el.findall("cpe") if cpe_el.text)
 
                 evidence: dict[str, object] = {}
@@ -150,6 +153,8 @@ class NmapPortScanner:
                     evidence["method"] = method
                 if conf is not None:
                     evidence["conf"] = conf
+                if tunnel is not None:
+                    evidence["tunnel"] = tunnel
                 if cpe:
                     evidence["cpe"] = list(cpe)
                 raw_evidence = evidence or None

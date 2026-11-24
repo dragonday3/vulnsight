@@ -70,7 +70,6 @@ def test_run_invalid_unless_every_target_completed_cleanly():
           "scan_status": "completed", "scan_cve_lookups_failed": 0, "failed_lookups": [],
           "scan_threat_intel_failed": 0}
     assert summary([ok])["valid"]
-    assert summary([ok])["valid"]
     assert not summary([ok, {**ok, "failed_lookups": ["cpe:x (lookup failed)"]}])["valid"]
     assert not summary([{**ok, "scan_cve_lookups_failed": 2}])["valid"]
     assert not summary([{**ok, "scan_cve_lookups_failed": None}])["valid"]  # never correlated

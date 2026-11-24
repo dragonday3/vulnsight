@@ -235,3 +235,21 @@ def test_import_has_no_side_effects() -> None:
     # test - and the module having already been imported at collection time
     # without error - is itself the assertion.
     import app.modules.discovery.nmap_scanner  # noqa: F401
+
+
+def test_tls_tunnel_attribute_is_captured_as_evidence() -> None:
+    """nmap's XML marks HTTPS as <service name="http" tunnel="ssl">; Phase 10
+    needs it as TLS evidence (the "ssl/http" form only exists in normal output)."""
+    xml = """<?xml version="1.0"?>
+<nmaprun><host><ports>
+  <port protocol="tcp" portid="443"><state state="open"/>
+    <service name="http" product="nginx" version="1.24.0" tunnel="ssl" method="probed" conf="10">
+      <cpe>cpe:/a:nginx:nginx:1.24.0</cpe>
+    </service>
+  </port>
+</ports></host></nmaprun>"""
+    completed = subprocess.CompletedProcess(args=[], returncode=0, stdout=xml, stderr="")
+    with patch.object(subprocess, "run", return_value=completed):
+        (result,) = NmapPortScanner().scan("127.0.0.1", [443], timeout_seconds=5)
+    assert result.raw_evidence is not None
+    assert result.raw_evidence["tunnel"] == "ssl"
