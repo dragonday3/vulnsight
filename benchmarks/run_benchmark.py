@@ -175,6 +175,10 @@ def summary(targets: list[dict]) -> dict:
         "mean_rank_vulnsight": mean([d["rank_vulnsight"] for d in hit]),
         "cves_matched_total": sum(t["cves_matched"] for t in targets),
         "targets_with_failed_lookups": sum(1 for t in targets if t.get("failed_lookups")),
+        # A run with any failed lookup measures NVD/infra flakiness, not
+        # recall: it is INVALID, not a lower score.
+        "valid": all(not t.get("failed_lookups") and not t.get("scan_cve_lookups_failed")
+                     for t in targets),
     }
 
 
@@ -231,7 +235,9 @@ def run() -> None:
         m = target_metrics(t, assets)
         m.update(scan_id=scan["id"], scan_status=scan["status"],
                  scan_risk_score=scan["risk_score"], scan_risk_tier=scan["risk_tier"],
-                 error_message=scan["error_message"], failed_lookups=failed_lookups(assets))
+                 error_message=scan["error_message"], failed_lookups=failed_lookups(assets),
+                 scan_cve_lookups_total=scan.get("cve_lookups_total"),
+                 scan_cve_lookups_failed=scan.get("cve_lookups_failed"))
         rows.append(m)
 
     result = {
@@ -261,6 +267,10 @@ def render_md(r: dict) -> str:
         "affected), not confirmed exploitable.",
         "",
         "## Summary",
+        "",
+        ("**Run valid**: every CVE lookup succeeded and was stored." if s["valid"] else
+         "**RUN INVALID**: at least one CVE lookup failed or was not stored (see the "
+         "Failed NVD lookups column). Recall below is not a measurement."),
         "",
         f"- Documented CVEs detected: **{s['documented_detected']}/{s['documented_total']}** "
         f"(recall {s['recall']})",

@@ -53,6 +53,13 @@ def test_closed_port_is_reported_not_crashed():
     assert summary([m])["mean_rank_vulnsight"] is None
 
 
+def test_run_invalid_when_any_lookup_failed():
+    ok = target_metrics({"host": "h", "port": 80, "documented_cves": []}, [])
+    assert summary([ok])["valid"]
+    assert not summary([ok, {**ok, "failed_lookups": ["cpe:x (lookup failed)"]}])["valid"]
+    assert not summary([{**ok, "scan_cve_lookups_failed": 2}])["valid"]
+
+
 def test_lookup_names_include_aliases_skip_versionless():
     from run_benchmark import lookup_names
     assets = [{"services": [
