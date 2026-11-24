@@ -17,7 +17,8 @@ from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-BASELINE = {"A": 16, "N": 48, "U": 16}  # Phase 9 run 6, 80 labels
+# Phase 9 run 6, 80 labels, as corrected by results/ERRATA.md (was 16/48/16).
+BASELINE = {"A": 15, "N": 49, "U": 16}
 
 
 def _counts(labels: list[str]) -> dict[str, int]:
@@ -63,7 +64,7 @@ def score(run: dict, known: dict, new: dict) -> tuple[str, dict]:
     out += ["## M2: applicability, 8 original targets (in-sample)", "",
             "| Target | A | N | U |", "|---|---|---|---|", *rows,
             f"| **Total** | **{total['A']}** | **{total['N']}** | **{total['U']}** |", "",
-            f"Baseline (Phase 9 run 6): A {BASELINE['A']}, N {BASELINE['N']}, U {BASELINE['U']}.",
+            f"Baseline (Phase 9 run 6, corrected per ERRATA.md): A {BASELINE['A']}, N {BASELINE['N']}, U {BASELINE['U']}.",
             f"Previously audited CVEs in the top 10: {len(prev)} {_counts(prev)}; "
             f"newly surfaced: {len(newly)} {_counts(newly)}.",
             f"Worst case (newly surfaced U counted as N): A {wc['A']}, N {wc['N']}, U {wc['U']}.",
