@@ -27,7 +27,7 @@ from app.models.project import Project
 from app.models.scan import Scan, ScanStatus
 from app.models.service import Service
 from app.models.target import Target, TargetType
-from app.modules.vulnerability import cache, confidence, nvd_client
+from app.modules.vulnerability import cache, confidence, cpe_utils, nvd_client
 from app.modules.vulnerability.correlator import (
     MAX_DISTINCT_CPES_PER_SCAN,
     CorrelationOutcome,
@@ -530,3 +530,36 @@ def test_outcome_counts_cap_skipped_cpes_as_failed(db: Session, redis_client: re
     with patch.object(nvd_client, "fetch_cves_for_cpe", return_value=_fetch_result()):
         outcome = correlate_services(db, redis_client, services)
     assert outcome == CorrelationOutcome(attempted=MAX_DISTINCT_CPES_PER_SCAN + 2, failed=2)
+
+
+def test_outcome_counts_truncated_lookup_as_incomplete(
+    db: Session, redis_client: redis.Redis
+) -> None:
+    """NVD reporting more CVEs than were fetched: findings are stored, but
+    the lookup still counts as not complete, fresh or from cache."""
+    fresh = _make_service(db, evidence={"cpe": [CPE22]}, port=1)
+    with patch.object(
+        nvd_client,
+        "fetch_cves_for_cpe",
+        return_value=_fetch_result("CVE-2021-0001", total_results=421),
+    ):
+        outcome = correlate_services(db, redis_client, [fresh])
+    assert outcome == CorrelationOutcome(attempted=1, failed=1)
+    assert len(db.execute(select(Finding)).scalars().all()) == 1
+
+    cached = _make_service(db, evidence={"cpe": [CPE22]}, port=2)
+    with patch.object(nvd_client, "fetch_cves_for_cpe") as mock_fetch:
+        outcome = correlate_services(db, redis_client, [cached])
+    mock_fetch.assert_not_called()
+    assert outcome == CorrelationOutcome(attempted=1, failed=1)
+
+
+def test_outcome_when_correlation_crashes_before_any_lookup(
+    db: Session, redis_client: redis.Redis
+) -> None:
+    """An unexpected error outside the per-CPE handling still reports an
+    incomplete correlation, never a clean 0-of-0."""
+    service = _make_service(db, evidence={"cpe": [CPE22]})
+    with patch.object(cpe_utils, "to_cpe23", side_effect=RuntimeError("bug")):
+        outcome = correlate_services(db, redis_client, [service])
+    assert outcome == CorrelationOutcome(attempted=1, failed=1)

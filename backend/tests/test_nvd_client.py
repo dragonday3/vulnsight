@@ -527,3 +527,62 @@ def test_fetch_cves_serialized_query_string_matches_nvd_api_requirements(monkeyp
     query_string = str(httpx.QueryParams(captured_params[-1]))
     assert "isVulnerable=&" in query_string or query_string.endswith("isVulnerable=")
     assert "isVulnerable=true" not in query_string
+
+
+def _page(start: int, n: int, total: int) -> dict[str, Any]:
+    return {
+        "totalResults": total,
+        "vulnerabilities": [_cve_entry(f"CVE-2024-{start + i:05d}") for i in range(n)],
+    }
+
+
+def test_fetch_cves_follows_full_pages_until_total(monkeypatch) -> None:
+    """A 250-CVE product needs two pages; the second asks for startIndex=200
+    and each page takes its own rate-limit slot (Phase 9: oracle:mysql had
+    421 CVEs and only the first 200 were fetched)."""
+    calls: list[dict[str, Any]] = []
+    acquires: list[int] = []
+
+    class _CountingLimiter(_NoopRateLimiter):
+        def acquire(self) -> None:
+            acquires.append(1)
+
+    def _get(*_a: Any, **kw: Any) -> httpx.Response:
+        calls.append(kw["params"])
+        start = kw["params"].get("startIndex", 0)
+        return httpx.Response(200, json=_page(start, min(200, 250 - start), 250))
+
+    monkeypatch.setattr(httpx, "get", _get)
+    result = fetch_cves_for_cpe(CPE23, _FAKE_REDIS, rate_limiter=_CountingLimiter())
+
+    assert result is not None
+    assert (len(result.cves), result.total_results) == (250, 250)
+    assert len({c.cve_id for c in result.cves}) == 250
+    assert [c.get("startIndex") for c in calls] == [None, 200]
+    assert len(acquires) == 2
+
+
+def test_fetch_cves_failure_on_a_later_page_fails_the_whole_fetch(monkeypatch) -> None:
+    """A partial list must never be returned (and so cached) as complete."""
+
+    def _get(*_a: Any, **kw: Any) -> httpx.Response:
+        if kw["params"].get("startIndex"):
+            return httpx.Response(503)
+        return httpx.Response(200, json=_page(0, 200, 250))
+
+    monkeypatch.setattr(httpx, "get", _get)
+    assert fetch_cves_for_cpe(CPE23, _FAKE_REDIS, rate_limiter=_NoopRateLimiter()) is None
+
+
+def test_fetch_cves_stops_at_page_cap_and_reports_truncation(monkeypatch) -> None:
+    from app.modules.vulnerability.nvd_client import NVD_MAX_PAGES
+
+    def _get(*_a: Any, **kw: Any) -> httpx.Response:
+        return httpx.Response(200, json=_page(kw["params"].get("startIndex", 0), 200, 5000))
+
+    monkeypatch.setattr(httpx, "get", _get)
+    result = fetch_cves_for_cpe(CPE23, _FAKE_REDIS, rate_limiter=_NoopRateLimiter())
+
+    assert result is not None
+    assert len(result.cves) == NVD_MAX_PAGES * NVD_RESULTS_PER_PAGE
+    assert result.total_results == 5000

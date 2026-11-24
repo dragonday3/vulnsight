@@ -302,6 +302,16 @@ def run_scan_task(scan_id: str) -> None:
         except Exception:
             db.rollback()
             logger.exception("run_scan_task: scan %s vulnerability correlation failed", scan_id)
+            # Leaving the counts NULL would read as "not correlated" and hide
+            # the failure; how far it got is unknown, so record 1 of 1.
+            try:
+                scan.cve_lookups_total = scan.cve_lookups_failed = 1
+                db.commit()
+            except Exception:
+                db.rollback()
+                logger.exception(
+                    "run_scan_task: scan %s could not record correlation failure", scan_id
+                )
 
         # Step 10.5 (Phase 7): RISK_ANALYSIS. Same best-effort shape as Steps
         # 9/9.5/10: scoring failures must never fail the scan, so any

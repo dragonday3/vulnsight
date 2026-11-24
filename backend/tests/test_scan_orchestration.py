@@ -702,6 +702,8 @@ def test_correlate_services_failure_does_not_fail_scan(db: Session, use_test_ses
     assert scan.status == ScanStatus.COMPLETED
     assert scan.completed_at is not None
     assert scan.error_message is None
+    # A crashed correlation must not read as "not correlated" (NULL).
+    assert (scan.cve_lookups_total, scan.cve_lookups_failed) == (1, 1)
 
 
 @pytest.mark.parametrize("scanner_name", ["native", "nmap"])
