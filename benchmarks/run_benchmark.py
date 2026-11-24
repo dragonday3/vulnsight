@@ -30,6 +30,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, "/app")  # backend code inside the backend image
 
+import app.db.base  # noqa: E402,F401  (registers every model so the ORM mappers resolve)
 from app.db.session import SessionLocal  # noqa: E402
 from app.modules.risk.scoring import score_finding_contribution  # noqa: E402
 from app.modules.vulnerability import cache, cpe_utils  # noqa: E402
