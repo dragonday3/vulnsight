@@ -25,6 +25,8 @@ from app.models.remediation import RemediationItem, RemediationState
 from app.models.scan import Scan
 from app.models.service import Service
 from app.modules.remediation.config import KEV_SLA_DAYS, SLA_DAYS, SLA_DAYS_DEFAULT
+from app.modules.vulnerability import cpe_utils
+from app.modules.vulnerability.correlator import _is_versionless_cpe23
 from app.modules.vulnerability.finding_dedup import dedupe_findings_by_cve
 
 logger = logging.getLogger(__name__)
@@ -54,20 +56,33 @@ CVE_NOT_MATCHED = "cve_not_matched"
 def verification_reason(key: Key, services_by_port: dict, scan: Scan) -> str | None:
     """Why a tracked CVE missing from this scan counts as gone, or None if
     the scan can't tell:
-    - SERVICE_NOT_OBSERVED: its port is no longer open;
-    - CVE_NOT_MATCHED: the port is open, the service still has CPE
-      evidence (so CVEs were looked up), and every CVE lookup in this scan
-      completed.
-    Otherwise (no fingerprint, a failed or truncated lookup) absence proves
-    nothing: Phase 9 showed a failed lookup looks exactly like "no CVEs".
+    - SERVICE_NOT_OBSERVED: its port is no longer open, while the host
+      still shows at least one open port (a host with nothing open is more
+      likely down or firewalled than fixed, so it verifies nothing);
+    - CVE_NOT_MATCHED: the port is open, the service has a CPE the
+      correlator actually looks up (converted and versioned), and every
+      CVE lookup in this scan completed.
+    Otherwise (no usable fingerprint, a failed or truncated lookup) absence
+    proves nothing: Phase 9 showed a failed lookup looks exactly like "no
+    CVEs".
     """
     service = services_by_port.get((key[0], key[1]))
     if service is None:
-        return SERVICE_NOT_OBSERVED
-    has_cpe = bool((service.evidence or {}).get("cpe"))
-    if has_cpe and scan.cve_lookups_failed == 0:
+        return SERVICE_NOT_OBSERVED if services_by_port else None
+    if _has_looked_up_cpe(service) and scan.cve_lookups_failed == 0:
         return CVE_NOT_MATCHED
     return None
+
+
+def _has_looked_up_cpe(service: Service) -> bool:
+    """Same filter as the correlator: a CPE that converts to 2.3 and has a
+    version. A version-less or unconvertible CPE is skipped there without
+    counting as a failed lookup, so it must not count as a check here."""
+    for cpe22 in (service.evidence or {}).get("cpe") or []:
+        cpe23 = cpe_utils.to_cpe23(cpe22)
+        if cpe23 is not None and not _is_versionless_cpe23(cpe23):
+            return True
+    return False
 
 
 def sync_remediation(db: Session, scan: Scan, services: list[Service]) -> dict[str, int]:
@@ -104,6 +119,8 @@ def sync_remediation(db: Session, scan: Scan, services: list[Service]) -> dict[s
 
         for key, finding in present.items():
             item = items.get(key)
+            if item is not None and seen_at < item.last_seen_at:
+                continue  # an older scan finishing late never overrides a newer one
             if item is None:
                 db.add(
                     RemediationItem(
@@ -156,6 +173,8 @@ def sync_remediation(db: Session, scan: Scan, services: list[Service]) -> dict[s
         for key, item in items.items():
             if key in present or item.state not in _UNRESOLVED_OR_ACCEPTED:
                 continue
+            if seen_at < item.last_seen_at:
+                continue  # an older scan can't verify what a newer one saw
             reason = verification_reason(key, services_by_port, scan)
             if reason is None:
                 continue

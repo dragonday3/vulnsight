@@ -29,6 +29,10 @@ SEVERITY_FALLBACK_WEIGHT: dict[str, float] = {
 # -- flag for revisit in dev notes, same framing as confidence_score's
 # bands and Phase 6's SENSITIVE_PORTS table.
 MISCONFIG_RELATIVE_WEIGHT = 0.6
+# Deferred (Phase 10/11): this was set against the pre-Phase-10 finding
+# weights; findings without exploit data now weigh about half as much, so
+# misconfigurations count relatively more. Not changed, because doing so
+# would move the published Phase 10 numbers; revisit with a new benchmark.
 
 # 0-100 score -> tier, descending, first threshold met wins. A score of
 # exactly 0.0 (no contributions at all, or every contribution excluded

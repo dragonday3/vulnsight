@@ -344,6 +344,52 @@ def test_simulated_seed_is_labelled_and_idempotent(db: Session) -> None:
     assert len(items) == 40
     assert all(i.simulated for i in items)
     assert all(i.cve_id.startswith("CVE-0000-") for i in items)  # never a real CVE id
+    demo_target = db.query(Target).filter(Target.project_id == project.id).one()
+    assert demo_target.authorization_confirmed is False  # can't be scanned
     assert metrics.compute(items, T0 + timedelta(days=300))["simulated"] is True
     assert seed(db) is None  # second run is a no-op
     assert db.query(Project).filter(Project.name == PROJECT_NAME).count() == 1
+
+
+def test_versionless_cpe_rescan_cannot_verify(db: Session) -> None:
+    """A version-less CPE is skipped by the correlator without counting as
+    a failed lookup; absence after such a rescan proves nothing."""
+    target = _target(db)
+    s1, sv1 = _scan(db, target, {80: ["CVE-A"]})
+    sync_remediation(db, s1, sv1)
+    s2, sv2 = _scan(db, target, {80: None})
+    sv2[0].evidence = {"cpe": ["cpe:/a:apache:http_server"]}  # no version
+    db.commit()
+    sync_remediation(db, s2, sv2)
+    assert _items(db, target)["CVE-A"].state == RemediationState.OPEN
+
+
+def test_rescan_with_no_open_ports_verifies_nothing(db: Session) -> None:
+    target = _target(db)
+    s1, sv1 = _scan(db, target, {80: ["CVE-A"]})
+    sync_remediation(db, s1, sv1)
+    s2, sv2 = _scan(db, target, {})  # host down or firewalled
+    counts = sync_remediation(db, s2, sv2)
+    assert counts["verified"] == 0
+    assert _items(db, target)["CVE-A"].state == RemediationState.OPEN
+
+
+def test_older_scan_finishing_late_does_not_override_newer(db: Session) -> None:
+    target = _target(db)
+    newer, sv_new = _scan(db, target, {80: ["CVE-A"]}, created=T0 + timedelta(days=5))
+    sync_remediation(db, newer, sv_new)
+    older, sv_old = _scan(db, target, {80: None}, created=T0)
+    sync_remediation(db, older, sv_old)  # would verify CVE-A if it weren't older
+    item = _items(db, target)["CVE-A"]
+    assert item.state == RemediationState.OPEN
+    assert item.last_seen_scan_id == newer.id
+
+
+def test_api_accept_requires_reason(client: TestClient, db: Session) -> None:
+    target = _target(db)
+    scan, services = _scan(db, target, {80: ["CVE-A"]})
+    sync_remediation(db, scan, services)
+    item_id = _items(db, target)["CVE-A"].id
+    resp = client.patch(f"/api/v1/remediation/items/{item_id}", json={"state": "accepted"})
+    assert resp.status_code == 400
+    assert "requires a reason" in resp.json()["detail"]

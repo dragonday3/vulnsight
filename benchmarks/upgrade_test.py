@@ -81,7 +81,15 @@ def evaluate(
     tp = len(matrix["exp_verified"]["verified"])
     fp = len(matrix["exp_not_verified"]["verified"])
     accuracy = round(correct / len(listed), 3) if listed else None
-    u1_met = bool(listed) and accuracy >= 0.90 and tp >= 15 and fp <= 1
+    recall = tp / len(expected_verified) if expected_verified else 0.0
+    # Pre-registered: accuracy >= 0.90, verified recall >= 15/16 (a ratio),
+    # at most 1 expected-not-verified item verified.
+    u1_met = bool(listed) and accuracy >= 0.90 and recall >= 15 / 16 and fp <= 1
+    by_reason_split: dict[str, dict[str, int]] = {}
+    for row, actual in (("exp_verified", "tp"), ("exp_not_verified", "fp")):
+        for cve in matrix[row]["verified"]:
+            reason = states_after2[cve].get("verification_reason") or "unknown"
+            by_reason_split.setdefault(reason, {"tp": 0, "fp": 0})[actual] += 1
 
     def state(cve: str, after: dict) -> str | None:
         return after.get(cve, {}).get("state")
@@ -108,6 +116,8 @@ def evaluate(
                 round((len(listed) - len(expected_verified)) / len(listed), 3) if listed else None
             ),
             "verified_by_reason": by_reason,
+            "tp_fp_by_reason": by_reason_split,
+            "denominator_as_preregistered": len(listed) == 88 and len(expected_verified) == 16,
             "claim_met": u1_met,
         },
         "u2": {"assertions": u2, "all_hold": all(u2.values())},
@@ -189,6 +199,18 @@ def main() -> None:
         "target_type": "hostname", "value": ALIAS, "authorization_confirmed": True,
         "authorization_note": "Local benchmark container, internal Docker network only"})
 
+    try:
+        result = _run_scans(base, project, target, fixed_in, started)
+    finally:
+        run(["docker", "rm", "-f", CONTAINER], check=False)
+    out = HERE / "results"
+    stem = f"{started:%Y-%m-%d-%H%M}-upgrade"
+    (out / f"{stem}.json").write_text(json.dumps(result, indent=2, default=str))
+    (out / f"{stem}.md").write_text(render_md(result))
+    print(render_md(result))
+
+
+def _run_scans(base: str, project: dict, target: dict, fixed_in: dict, started) -> dict:
     start_target(IMAGE_OLD)
     s1 = scan(base, project["id"], target["id"])
     items1 = items_by_cve(base, project["id"])
@@ -205,6 +227,10 @@ def main() -> None:
     run(["docker", "exec", "vulnsight-postgres-1", "psql", "-U", "vulnsight", "-d", "vulnsight",
          "-c", f"delete from cve_cache where cpe = '{NEW_CPE23}'"])
     far = str(int(time.time()) + 10**7)
+    # DEL first: the limiter sets a 60s EXPIRE on every claim, and ZADD onto
+    # that key would keep the TTL, letting the block vanish mid-scan. A fresh
+    # key has no TTL; blocked attempts never add, so it never gets one.
+    run(["docker", "exec", "vulnsight-redis-1", "redis-cli", "-n", "0", "DEL", RATELIMIT_KEY])
     run(["docker", "exec", "vulnsight-redis-1", "redis-cli", "-n", "0", "ZADD", RATELIMIT_KEY,
          far, "u4-block-1", far, "u4-block-2", far, "u4-block-3", far, "u4-block-4",
          far, "u4-block-5"])
@@ -213,7 +239,6 @@ def main() -> None:
     finally:
         run(["docker", "exec", "vulnsight-redis-1", "redis-cli", "-n", "0", "DEL", RATELIMIT_KEY])
     items3 = items_by_cve(base, project["id"])
-    run(["docker", "rm", "-f", CONTAINER], check=False)
 
     def ok(s: dict) -> bool:
         sc = s["scan"]
@@ -223,25 +248,35 @@ def main() -> None:
     validity = {
         "scan1_complete": ok(s1),
         "scan2_complete": ok(s2),
-        "scan2_fingerprint_2.4.54": s2["port80"].get("version") == NEW_VERSION,
+        "scan2_fingerprint_httpd_2.4.54": s2["port80"].get("product") == "Apache httpd"
+        and s2["port80"].get("version") == NEW_VERSION,
+        "u4_scan3_completed": s3["scan"]["status"] == "completed",
         "u4_scan3_lookups_failed": (s3["scan"]["cve_lookups_failed"] or 0) > 0,
     }
-    result = {
+    metrics = evaluate(set(s1["cves"]), items2, items3, fixed_in)
+    # Pre-registered: each missed / wrongly verified item with Apache's view
+    # (fixed-in release) and NVD's (still matched for 2.4.54 in scan 2?).
+    mx = metrics["u1"]["matrix"]
+    metrics["u1"]["mismatches"] = [
+        {"cve": cve, "kind": kind, "apache_fixed_in": fixed_in.get(cve),
+         "nvd_matches_2.4.54": cve in s2["cves"],
+         "state": items2.get(cve, {}).get("state"),
+         "verification_reason": items2.get(cve, {}).get("verification_reason")}
+        for kind, cves in (("missed", mx["exp_verified"]["not_verified"]),
+                           ("wrongly_verified", mx["exp_not_verified"]["verified"]))
+        for cve in cves
+    ]
+    return {
         "run_started_utc": started.isoformat(timespec="seconds"),
         "vulnsight_commit": run(["git", "-C", str(HERE.parent), "rev-parse", "--short", "HEAD"]),
         "images": {"old": IMAGE_OLD, "new": IMAGE_NEW},
         "validity": validity,
         "valid": all(v for k, v in validity.items() if not k.startswith("u4")),
-        "u4_valid": validity["u4_scan3_lookups_failed"],
-        "metrics": evaluate(set(s1["cves"]), items2, items3, fixed_in),
+        "u4_valid": validity["u4_scan3_completed"] and validity["u4_scan3_lookups_failed"],
+        "metrics": metrics,
         "scans": {"scan1": s1, "scan2": s2, "scan3": s3},
         "items_after": {"scan1": items1, "scan2": items2, "scan3": items3},
     }
-    out = HERE / "results"
-    stem = f"{started:%Y-%m-%d-%H%M}-upgrade"
-    (out / f"{stem}.json").write_text(json.dumps(result, indent=2, default=str))
-    (out / f"{stem}.md").write_text(render_md(result))
-    print(render_md(result))
 
 
 def render_md(r: dict) -> str:
@@ -271,16 +306,22 @@ def render_md(r: dict) -> str:
         "",
         f"Accuracy {u1['accuracy']} (trivial never-verify baseline "
         f"{u1['trivial_never_verify_accuracy']}); verified recall {u1['verified_recall']}; "
-        f"wrongly verified {u1['false_verified']}; verified by reason {u1['verified_by_reason']}.",
+        f"wrongly verified {u1['false_verified']}; TP/FP by verification reason "
+        f"{u1['tp_fp_by_reason']}. Denominator as pre-registered (88/16): "
+        f"{u1['denominator_as_preregistered']}.",
         f"Claim criterion (accuracy >= 0.90, recall >= 15/16, wrongly verified <= 1): "
         f"**{'met' if u1['claim_met'] and r['valid'] else 'not met'}**.",
         "",
-        f"Missed (expected verified, not verified): {mx['exp_verified']['not_verified'] or 'none'}",
-        f"Wrongly verified: {mx['exp_not_verified']['verified'] or 'none'}",
+        "Mismatches (Apache fixed-in vs NVD's 2.4.54 match):",
+        *(f"- {x['cve']} ({x['kind']}): Apache fixed in {x['apache_fixed_in']}, "
+          f"NVD still matches 2.4.54: {x['nvd_matches_2.4.54']}, state {x['state']}"
+          for x in u1.get("mismatches", [])),
+        *(["- none"] if not u1.get("mismatches") else []),
         "",
         "## U2: analyst actions",
         "",
-        *(f"- {k}: **{'holds' if v else 'FAILS'}**" for k, v in u2["assertions"].items()),
+        *(f"- {k}: **{('holds' if v else 'FAILS') if r['valid'] else 'not scored (run invalid)'}**"
+          for k, v in u2["assertions"].items()),
         "",
         "## U3: coverage",
         "",
@@ -290,7 +331,7 @@ def render_md(r: dict) -> str:
         "",
         f"State changes between scan 2 and the failed scan 3: "
         f"{u4['state_changes_in_failed_rescan'] or 'none'} -> "
-        f"**{'holds' if u4['zero_changes'] and r['u4_valid'] else 'not met'}**.",
+        f"**{('holds' if u4['zero_changes'] else 'not met') if r['u4_valid'] and r['valid'] else 'not scored (invalid)'}**.",
     ]
     return "\n".join(lines) + "\n"
 

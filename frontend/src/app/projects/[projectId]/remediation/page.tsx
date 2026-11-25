@@ -130,7 +130,7 @@ export default async function RemediationPage({
           )
         )}
 
-        {!loadError && items.length === 0 ? (
+        {loadError ? null : items.length === 0 ? (
           <p className="rounded-lg border border-dashed border-zinc-300 px-4 py-6 text-center text-sm text-zinc-500">
             No remediation items yet. Items are created when an Nmap scan matches CVEs.
           </p>

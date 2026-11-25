@@ -50,7 +50,8 @@ def seed(db: Session, now: datetime | None = None) -> Project | None:
         project_id=project.id,
         value="simulated-demo.invalid",
         target_type=TargetType.HOSTNAME,
-        authorization_confirmed=True,
+        # Not authorized, so the UI can't queue a scan against it.
+        authorization_confirmed=False,
         authorization_note="Simulated demo target; never scanned.",
     )
     db.add(target)

@@ -51,6 +51,8 @@ def update_item(db: Session, item_id: uuid.UUID, data: RemediationUpdate) -> Rem
             f"Cannot move a remediation item from {item.state.value} to {data.state.value}"
             + (" (only a rescan can verify)" if data.state == RemediationState.VERIFIED else "")
         )
+    if data.state == RemediationState.ACCEPTED and not (data.note or "").strip():
+        raise ValidationConflictError("Accepting the risk requires a reason in `note`")
     now = datetime.now(UTC)
     if data.state != item.state:
         item.state = data.state
