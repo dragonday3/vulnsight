@@ -117,6 +117,20 @@ U1 is reported separately per reason. The UI shows the reason.
 (`service_not_observed` is the weaker evidence: a service that is
 simply down would look the same.)
 
+## Amendment 2 (2026-11-25, still before any Phase 11 code is committed)
+
+**U1 claim criterion, replacing accuracy-only.** 72 of the 88 items are
+expected *not* verified, so a system that never verifies anything would
+score 72/88 = **0.82 accuracy**: that is the trivial baseline. A U1 claim
+is made only if all three hold:
+- accuracy ≥ 0.90;
+- **recall on the expected-verified class ≥ 15/16**;
+- **at most 1** expected-not-verified item ends verified (precision of
+  "verified" ≥ 15/16).
+
+Every wrongly verified or missed item is listed with Apache's and NVD's
+view.
+
 ## Disclosures
 
 - **Scan-1 CVEs were known in advance.** The list of CVEs VulnSight
