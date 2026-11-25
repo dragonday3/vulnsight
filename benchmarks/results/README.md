@@ -56,3 +56,12 @@ Files for the published run (all under `2026-11-24-1914`):
 | [metrics](2026-11-24-1914-metrics.md) | M1–M4 and M2-heldout, computed by `../score_labels.py` | After the labels |
 
 Corrections are in [ERRATA.md](ERRATA.md).
+
+## Phase 11 (remediation lifecycle)
+
+Pre-registration: [`../phase11-preregistration.md`](../phase11-preregistration.md),
+with three amendments, all committed before any Phase 11 code or scan.
+
+| Run | App code | Valid | Result |
+|---|---|---|---|
+| [2026-11-25-1808-upgrade](2026-11-25-1808-upgrade.md) | `ba0ebd7` | **yes** (U4 valid too) | U1 16/16 verified, 0/72 wrongly verified; U2 3/3; U4 0 state changes |

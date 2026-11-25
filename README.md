@@ -18,6 +18,7 @@ VulnSight discovers what is running on a host, matches it to known CVEs, checks 
 - **Discovery:** native asyncio port scanner, or Nmap `-sV` service/version detection (per-scan setting)
 - **CVE correlation:** fingerprinted services → CPE 2.3 → [NIST NVD CVE API](https://nvd.nist.gov/developers/vulnerabilities); parses CVSS v4.0, v3.1, v3.0 and v2 metrics; 7-day CVE cache in PostgreSQL
 - **Correlation completeness:** each scan records how many CVE lookups did not complete (failed, not stored, or truncated), and the scan and report pages warn when the count is above zero
+- **Remediation lifecycle:** every vulnerable target / port / CVE is tracked across scans as `open`, `accepted` (with a reason), `fixed` or `verified`. SLA deadlines are 15 / 30 / 90 / 180 days by severity, 14 days for CISA KEV. Only a rescan can verify a fix, and only one that could have seen the CVE. A disproven fix claim or a returning CVE reopens the item. The project page shows MTTR, SLA-breach % and aging
 - **Exploit likelihood:** every matched CVE is enriched with [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) membership and its [FIRST EPSS](https://www.first.org/epss/) score (both cached for 24 h), and these drive half of each finding's risk contribution
 - **Applicability flags:** a CVE whose description names a prerequisite feature (HTTP/2, TLS, mod_proxy, DIGEST auth, ...) that wasn't observed on the target is flagged "requires X (not observed)" and discounted; it stays visible
 - **Shared NVD rate limiting:** a Redis + Lua atomic sliding-window limiter keeps every worker process within NVD's public limit of 5 requests per 30 seconds
@@ -29,7 +30,7 @@ VulnSight discovers what is running on a host, matches it to known CVEs, checks 
   - 12 sensitive exposed services (Telnet, FTP, SMB, RDP, VNC, Redis, MongoDB, Elasticsearch, Memcached, MySQL, PostgreSQL, Docker Engine API)
 - **Risk scoring:** per-asset and per-scan 0–100 score with CRITICAL / HIGH / MEDIUM / LOW tiers (see below); duplicate CVEs from overlapping CPE matches are counted once
 - **Reports:** per-scan summary (risk, findings by severity and validation state, per-asset/per-service CVEs and misconfigurations) via API and a report page
-- **Quality:** 291 test functions (423 pytest cases with parametrization); GitHub Actions CI runs pytest (with PostgreSQL, Redis and Nmap), ruff, black, mypy, and the Next.js lint/build
+- **Quality:** 314 test functions (446 pytest cases with parametrization); GitHub Actions CI runs pytest (with PostgreSQL, Redis and Nmap), ruff, black, mypy, and the Next.js lint/build
 
 ## Architecture
 
@@ -199,6 +200,50 @@ reports them verbatim, including what failed:
   limits. The harness now runs scans one at a time (harness change only),
   and the valid run used the same app code.
 
+### Phase 11: remediation and rescan verification
+
+Pre-registered in
+[`benchmarks/phase11-preregistration.md`](benchmarks/phase11-preregistration.md)
+before any Phase 11 code. It has three amendments, all committed before the
+run.
+
+**The test.**
+1. Scan Apache httpd 2.4.49.
+2. Mark CVE-2021-41773 and CVE-2022-36760 `fixed`, and accept
+   CVE-2024-38474 with a reason.
+3. Replace the server behind the same hostname with httpd 2.4.54 and
+   rescan.
+4. Rescan once more with CVE correlation forced to fail: the app's own NVD
+   rate limiter is saturated, its real outage path.
+
+The ground truth is independent of NVD and of VulnSight: Apache's own
+advisories list the release that fixed each CVE
+([snapshot](benchmarks/phase11/apache-fixed-in.json)).
+
+![Remediation page after the upgrade rescan](docs/screenshots/remediation.png)
+
+| Metric (pre-registered) | Result | Criterion |
+|---|---|---|
+| U1: state after the upgrade vs Apache's fixed-in releases (88 items) | **16/16** CVEs Apache fixed by 2.4.54 verified; **0/72** still-vulnerable CVEs verified. Accuracy 1.0, against 0.82 for a system that never verifies. | **met** |
+| U2: analyst actions | the fixed claim on 41773 was verified; 38474 stayed accepted; the **false** fixed claim on 36760 (still vulnerable in 2.4.54) was **reopened** | **met** |
+| U4: a rescan whose CVE lookups fail | the lookups really failed, and **0** items changed state | **met** |
+
+The run is in [`benchmarks/results/2026-11-25-1808-upgrade.md`](benchmarks/results/2026-11-25-1808-upgrade.md).
+
+**What this does and doesn't show.**
+- **U1 is mostly NVD/Apache agreement.** With version-range matching, CVEs
+  fixed by 2.4.54 drop out of NVD's results anyway; here NVD and Apache
+  agreed on all 88. U2 and U4 are what test the lifecycle logic itself:
+  - a fix claim the rescan disproves is reopened;
+  - a failed rescan never counts as fixed.
+- **It is one controlled upgrade**, not a field study.
+- **The MTTR shown (0 days) is real but meaningless:** the upgrade happened
+  minutes after the first scan. Real MTTR needs weeks of real fixes.
+- **Metric demo uses simulated data.** A separate demo project, labelled
+  SIMULATED in its name, its data and the UI, shows what MTTR, SLA-breach
+  and aging look like over months. It is not a measurement
+  ([screenshot](docs/screenshots/remediation-simulated.png)).
+
 ## API
 
 All routes are under `/api/v1` (interactive docs at `/docs`).
@@ -216,6 +261,9 @@ All routes are under `/api/v1` (interactive docs at `/docs`).
 | `GET` | `/scans/{scan_id}/assets` | Assets, services, findings and misconfigurations |
 | `GET` | `/scans/{scan_id}/report` | Scan report |
 | `PATCH` | `/findings/{finding_id}` | Set validation state (confirmed / false positive) |
+| `GET` | `/projects/{project_id}/remediation/items` | Remediation items (optional `?state=`) |
+| `GET` | `/projects/{project_id}/remediation/metrics` | MTTR, SLA-breach %, overdue, aging |
+| `PATCH` | `/remediation/items/{item_id}` | Accept (reason required), mark fixed, reopen; only a rescan verifies |
 
 ## Quick Start
 
