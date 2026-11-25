@@ -131,6 +131,27 @@ is made only if all three hold:
 Every wrongly verified or missed item is listed with Apache's and NVD's
 view.
 
+## Amendment 3 (2026-11-25, before any Phase 11 scan)
+
+Stricter verification rules, from the pre-run code review. Each one only
+removes ways an item can become verified; none adds one.
+- **Version-less or unconvertible CPEs don't count as a check.** A rescan
+  counts toward `cve_not_matched` only if the service has a CPE the
+  correlator actually looks up: one that converts to CPE 2.3 and carries
+  a version. The correlator skips version-less CPEs without counting a
+  failed lookup, so before this fix a rescan that never ran a lookup
+  could have verified items.
+- **A host with no open ports verifies nothing.** `service_not_observed`
+  applies only when the host still shows at least one open port. A rescan
+  with zero open ports is more likely down or firewalled than fixed.
+- **Older scans can't override newer ones.** A scan older than an item's
+  last sighting can neither update nor verify it, which protects against
+  out-of-order scan completion.
+- **Risk acceptance needs a reason,** enforced server-side.
+
+U1-U4 definitions and thresholds are unchanged. The U1 recall criterion
+is implemented as the ratio ≥ 15/16 written above, not a fixed count.
+
 ## Disclosures
 
 - **Scan-1 CVEs were known in advance.** The list of CVEs VulnSight
