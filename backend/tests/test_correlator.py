@@ -547,17 +547,27 @@ def test_outcome_counts_truncated_lookup_as_incomplete(
     assert outcome == CorrelationOutcome(attempted=1, failed=1)
     assert len(db.execute(select(Finding)).scalars().all()) == 1
 
-    # The cached row (1 of 421, below the page cap) predates pagination, so
-    # it is re-fetched instead of served; still truncated -> still failed.
+    # The cached row (1 of 421) is not a one-page pre-pagination row, so it
+    # is served from cache, and it still counts as incomplete.
     cached = _make_service(db, evidence={"cpe": [CPE22]}, port=2)
-    with patch.object(
-        nvd_client,
-        "fetch_cves_for_cpe",
-        return_value=_fetch_result("CVE-2021-0001", total_results=421),
-    ) as mock_fetch:
+    with patch.object(nvd_client, "fetch_cves_for_cpe") as mock_fetch:
         outcome = correlate_services(db, redis_client, [cached])
-    mock_fetch.assert_called_once()
+    mock_fetch.assert_not_called()
     assert outcome == CorrelationOutcome(attempted=1, failed=1)
+
+
+def test_exactly_one_page_truncated_cache_row_is_refetched(
+    db: Session, redis_client: redis.Redis
+) -> None:
+    """A cached row holding exactly one page (200) of more is the shape the
+    pre-pagination client stored; it is re-fetched, not served."""
+    cache.store(db, CPE23, _cves(*[f"CVE-2021-{i:04d}" for i in range(200)]), total_results=421)
+    service = _make_service(db, evidence={"cpe": [CPE22]})
+    with patch.object(
+        nvd_client, "fetch_cves_for_cpe", return_value=_fetch_result("CVE-2021-0001")
+    ) as mock_fetch:
+        correlate_services(db, redis_client, [service])
+    mock_fetch.assert_called_once()
 
 
 def test_outcome_when_correlation_crashes_before_any_lookup(

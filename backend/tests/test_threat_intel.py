@@ -159,3 +159,21 @@ def test_epss_unreachable_stops_and_counts_remaining_batches(monkeypatch, redis_
     monkeypatch.setattr(httpx, "get", _get)
     scores, failed = threat_intel.epss_scores({"CVE-1", "CVE-2", "CVE-3"}, redis_client)
     assert (scores, failed, len(calls)) == ({}, 3, 1)
+
+
+def test_applicability_flags_survive_a_later_enrichment_failure(
+    monkeypatch, db: Session, redis_client: redis.Redis
+) -> None:
+    """The pure flags are committed before any network/Redis work, so an
+    unexpected failure there must not roll them back."""
+    service = _make_service(db, evidence={"cpe": ["cpe:/a:x:y:1"]})
+    finding = _add_finding(db, service, "CVE-2023-44487", "The HTTP/2 protocol allows DoS.")
+
+    def _boom(_redis: redis.Redis) -> set[str]:
+        raise RuntimeError("redis down")
+
+    monkeypatch.setattr(threat_intel, "kev_ids", _boom)
+    db.refresh(service)
+    assert threat_intel.enrich_findings(db, redis_client, [service]) == 1
+    db.refresh(finding)
+    assert finding.unverified_prerequisite == "http2"
