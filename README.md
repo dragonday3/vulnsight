@@ -203,9 +203,10 @@ reports them verbatim, including what failed:
 ### Phase 11: remediation and rescan verification
 
 Pre-registered in
-[`benchmarks/phase11-preregistration.md`](benchmarks/phase11-preregistration.md)
-before any Phase 11 code. It has three amendments, all committed before the
-run.
+[`benchmarks/phase11-preregistration.md`](benchmarks/phase11-preregistration.md).
+The original and amendments 1-2 were committed before any Phase 11 code, and
+all three amendments before any scan. Amendment 3 added stricter
+verification rules from the pre-run code review.
 
 **The test.**
 1. Scan Apache httpd 2.4.49.
@@ -239,6 +240,9 @@ The run is in [`benchmarks/results/2026-11-25-1808-upgrade.md`](benchmarks/resul
 - **It is one controlled upgrade**, not a field study.
 - **The MTTR shown (0 days) is real but meaningless:** the upgrade happened
   minutes after the first scan. Real MTTR needs weeks of real fixes.
+  - The pre-registration said MTTR/SLA numbers would appear only on the
+    simulated demo. The real project's page and its screenshot show them
+    too: a deviation, disclosed here, with no claim made from them.
 - **Metric demo uses simulated data.** A separate demo project, labelled
   SIMULATED in its name, its data and the UI, shows what MTTR, SLA-breach
   and aging look like over months. It is not a measurement
@@ -417,6 +421,9 @@ never built fails on every dynamic route with `Cannot find name
   (`cpe_utils.nvd_aliases`). Other renamed products will still be missed
   until they are added.
 - Nmap scans the top 1000 ports only.
+- Two scans of the same target running at the same time can race in
+  remediation tracking: an older scan that finishes last can reopen an item
+  a newer scan verified. Run one scan per target at a time.
 
 ## Responsible Use
 

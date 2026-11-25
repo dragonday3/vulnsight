@@ -120,7 +120,7 @@ def sync_remediation(db: Session, scan: Scan, services: list[Service]) -> dict[s
         for key, finding in present.items():
             item = items.get(key)
             if item is not None and seen_at < item.last_seen_at:
-                continue  # an older scan finishing late never overrides a newer one
+                continue  # skip if a newer scan already saw it (verification isn't tracked here)
             if item is None:
                 db.add(
                     RemediationItem(

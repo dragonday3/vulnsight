@@ -60,7 +60,10 @@ Corrections are in [ERRATA.md](ERRATA.md).
 ## Phase 11 (remediation lifecycle)
 
 Pre-registration: [`../phase11-preregistration.md`](../phase11-preregistration.md),
-with three amendments, all committed before any Phase 11 code or scan.
+with three amendments. The original pre-registration and amendments 1-2
+were committed before any Phase 11 code. All three amendments were
+committed before any Phase 11 scan; amendment 3 followed the pre-run code
+review.
 
 | Run | App code | Valid | Result |
 |---|---|---|---|
