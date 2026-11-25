@@ -70,6 +70,53 @@ and not scored.
 | U2 | Analyst-action assertions: CVE-2021-41773 (marked fixed, fixed in 2.4.50) ends `verified`; CVE-2024-38474 (accepted, fixed in 2.4.60) ends `accepted`. | both hold |
 | U3 | Coverage: how many scan-1 items are Apache-listed. | reported only |
 
+## Amendment 1 (2026-11-25, still before any Phase 11 code or scan)
+
+This amendment follows a review of the pre-registration above. That
+original text is kept unchanged in git history.
+
+**U1 is a confusion matrix, with the denominator fixed now.**
+- The denominator is the scan-1 items for bench-upgrade whose CVE is in
+  `apache-fixed-in.json`.
+- Using the Phase 10 scan of the same image, that is expected to be 88
+  items: **16 expected verified** (fixed in ≤ 2.4.54) and **72 expected
+  not verified**.
+- Reported: expected {verified, not verified} × actual {verified,
+  open/accepted/fixed}, plus accuracy.
+- Accuracy ≥ 0.90 stays the claim criterion, but the matrix is the
+  headline.
+- **Caveat.** With version-range CVE matching, CVEs Apache fixed by
+  2.4.54 are likely to drop out of NVD's results for 2.4.54 anyway. U1
+  therefore mostly measures NVD/Apache agreement plus the sync's
+  bookkeeping, not lifecycle judgement. U2 and U4 test the lifecycle
+  logic itself.
+
+**U2 gains a negative control.** Before the rescan, CVE-2022-36760
+(Apache: fixed in 2.4.55, so 2.4.54 is still vulnerable) is also marked
+`fixed` by the analyst. It must end `open` (fix not confirmed by the
+rescan). That makes three U2 assertions:
+- CVE-2021-41773 ends `verified`;
+- CVE-2024-38474 ends `accepted`;
+- CVE-2022-36760 ends `open`.
+
+**U4 (new): a failed rescan verifies nothing.** After scan 2:
+1. Run **scan 3** of the same 2.4.54 host with CVE correlation forced to
+   fail. Delete the cached NVD rows for the 2.4.54 CPE, and fill the
+   app's own NVD rate-limiter window so every lookup times out; this is
+   the real code path for an NVD outage.
+2. Scan 3 must report `cve_lookups_failed > 0`. Otherwise U4 is invalid,
+   not passed.
+3. Assertion: **zero** items change state between scan 2 and scan 3.
+
+**Verification reasons recorded.** Each verified item records why:
+- `cve_not_matched`: the service is still there, and the rescan
+  completed without matching this CVE;
+- `service_not_observed`: the port is no longer open.
+
+U1 is reported separately per reason. The UI shows the reason.
+(`service_not_observed` is the weaker evidence: a service that is
+simply down would look the same.)
+
 ## Disclosures
 
 - **Scan-1 CVEs were known in advance.** The list of CVEs VulnSight
