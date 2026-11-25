@@ -17,6 +17,7 @@ from app.modules.discovery.native_scanner import NativePortScanner
 from app.modules.discovery.nmap_scanner import NmapPortScanner
 from app.modules.fingerprinting.http_prober import WEB_PORTS, probe_services
 from app.modules.misconfiguration.analyzer import analyze_services
+from app.modules.remediation.sync import sync_remediation
 from app.modules.reporting.report_generator import generate_report
 from app.modules.risk.risk_scorer import score_assets
 from app.modules.vulnerability.correlator import correlate_services
@@ -329,6 +330,12 @@ def run_scan_task(scan_id: str) -> None:
                 db.commit()
             except Exception:
                 db.rollback()
+
+        # Phase 11, still inside CORRELATING (no new stage): track this scan's
+        # findings as remediation items across scans, and verify tracked
+        # items a trustworthy rescan no longer finds. Best-effort; never
+        # raises, never touches scan.status.
+        sync_remediation(db, scan, services)
 
         # Step 10.5 (Phase 7): RISK_ANALYSIS. Same best-effort shape as Steps
         # 9/9.5/10: scoring failures must never fail the scan, so any
