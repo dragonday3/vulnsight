@@ -333,3 +333,17 @@ def test_api_unknown_project_and_item_404(client: TestClient) -> None:
     assert client.get(f"/api/v1/projects/{missing}/remediation/metrics").status_code == 404
     resp = client.patch(f"/api/v1/remediation/items/{missing}", json={"state": "fixed"})
     assert resp.status_code == 404
+
+
+def test_simulated_seed_is_labelled_and_idempotent(db: Session) -> None:
+    from app.scripts.seed_simulated_remediation import PROJECT_NAME, seed
+
+    project = seed(db, now=T0 + timedelta(days=300))
+    assert project is not None and project.name.startswith("SIMULATED")
+    items = db.query(RemediationItem).filter(RemediationItem.project_id == project.id).all()
+    assert len(items) == 40
+    assert all(i.simulated for i in items)
+    assert all(i.cve_id.startswith("CVE-0000-") for i in items)  # never a real CVE id
+    assert metrics.compute(items, T0 + timedelta(days=300))["simulated"] is True
+    assert seed(db) is None  # second run is a no-op
+    assert db.query(Project).filter(Project.name == PROJECT_NAME).count() == 1

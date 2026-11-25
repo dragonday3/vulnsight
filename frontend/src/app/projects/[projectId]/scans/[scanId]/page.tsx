@@ -102,12 +102,20 @@ export default async function ScanResultsPage({
               &larr; Back to project
             </Link>
             {scan.status === "completed" && (
-              <Link
-                href={`/projects/${projectId}/scans/${scanId}/report`}
-                className="text-sm text-blue-600 hover:underline"
-              >
-                View report &rarr;
-              </Link>
+              <span className="flex gap-4">
+                <Link
+                  href={`/projects/${projectId}/remediation`}
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  Remediation &rarr;
+                </Link>
+                <Link
+                  href={`/projects/${projectId}/scans/${scanId}/report`}
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  View report &rarr;
+                </Link>
+              </span>
             )}
           </div>
           <h1 className="text-2xl font-semibold text-zinc-900">

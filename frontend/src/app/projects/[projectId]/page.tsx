@@ -111,6 +111,12 @@ export default async function ProjectDetailPage({
           {project.description && (
             <p className="text-sm text-zinc-500">{project.description}</p>
           )}
+          <Link
+            href={`/projects/${project.id}/remediation`}
+            className="text-sm text-blue-600 hover:underline"
+          >
+            Remediation: SLA, MTTR and open items &rarr;
+          </Link>
         </header>
 
         <section className="flex flex-col gap-3">
