@@ -22,6 +22,7 @@ export interface RemediationItemRead {
   // "cve_not_matched" | "service_not_observed" once verified.
   verification_reason: string | null;
   reopened_count: number;
+  sources: string[];
   simulated: boolean;
 }
 

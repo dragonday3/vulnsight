@@ -176,6 +176,7 @@ export default async function RemediationPage({
                       <td className="px-3 py-2 text-xs text-zinc-700">
                         {targets.get(item.target_id)?.value ?? item.target_id.slice(0, 8)}:
                         {item.port}/{item.protocol}
+                        <div className="text-zinc-500">via {item.sources.join(", ")}</div>
                       </td>
                       <td className="px-3 py-2">
                         <SeverityBadge severity={item.severity as Severity} />

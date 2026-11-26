@@ -36,6 +36,9 @@ export interface FindingRead {
   epss: number | null;
   epss_percentile: number | null;
   unverified_prerequisite: string | null;
+  // Phase 12: who reported it. Imported findings carry the scanner's plugin
+  // id / NVT OID, severity and QoD in `evidence`.
+  source: "vulnsight" | "nessus" | "openvas";
 }
 
 // Body for PATCH /findings/{id}. validation_note is always optional and is

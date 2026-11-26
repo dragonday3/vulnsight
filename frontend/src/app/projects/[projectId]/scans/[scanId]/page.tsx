@@ -146,6 +146,14 @@ export default async function ScanResultsPage({
             )}
           </div>
 
+          {scan.config?.import === true && (
+            <p className="rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+              Imported from a {String(scan.config.scanner) === "openvas" ? "OpenVAS" : "Nessus"} report
+              (host scanned {scan.started_at ? new Date(scan.started_at).toLocaleString() : "at an unknown time"}).
+              VulnSight ran no discovery or NVD correlation here: the findings are the scanner&apos;s own,
+              enriched with KEV/EPSS and tracked in remediation.
+            </p>
+          )}
           {scan.cve_lookups_failed != null && scan.cve_lookups_failed > 0 && (
             <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
               CVE correlation incomplete: {scan.cve_lookups_failed} of {scan.cve_lookups_total} CVE lookups did not complete
@@ -279,6 +287,11 @@ export default async function ScanResultsPage({
                                   <span className="text-xs text-zinc-500">
                                     Confidence: {Math.round(finding.confidence_score)}/100
                                   </span>
+                                  {finding.source !== "vulnsight" && (
+                                    <span className="rounded border border-sky-300 bg-sky-50 px-1 text-xs text-sky-900">
+                                      {finding.source} plugin {String(finding.evidence.plugin_id ?? "?")}
+                                    </span>
+                                  )}
                                   <ExploitSignals
                                     kev={finding.kev}
                                     epss={finding.epss}

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
 import TargetForm from "@/components/TargetForm";
 import ScanCreateButton from "@/components/ScanCreateButton";
+import ImportReportForm from "@/components/ImportReportForm";
 import { getProject } from "@/lib/api/projects";
 import { listTargets } from "@/lib/api/targets";
 import { listScans } from "@/lib/api/scans";
@@ -224,6 +225,10 @@ export default async function ProjectDetailPage({
 
         <section>
           <ScanCreateButton projectId={projectId} targets={targets} />
+        </section>
+
+        <section>
+          <ImportReportForm projectId={projectId} />
         </section>
       </div>
     </div>
