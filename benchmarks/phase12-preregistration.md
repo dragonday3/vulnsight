@@ -162,3 +162,40 @@ and the scan start time from the file for imports.
 
 **Done** means CI is green on the merge commit with every test above
 present by name. The README lists each test's name next to its rule.
+
+## Amendment 1 (2026-11-26, after the code, before the merge)
+
+A fresh-eyes review of the implementation found two rules too loose. Both
+changes tighten the rules; neither loosens any. They are committed here
+before the fixing code.
+
+1. **"Service not observed" needs a port VulnSight actually probes.**
+   - nmap probes only TCP, top 1000 ports. So a closed-port verification
+     must require that the item's (port, protocol) was seen open by an
+     earlier VulnSight scan of the same target. That proves nmap probes
+     it.
+   - Otherwise an imported UDP item (e.g. 161/udp), or one on a port
+     outside nmap's set, would be "verified" by every VulnSight scan,
+     because nmap never looks there.
+   - Port 0 stays excluded, as before.
+   - I7 gains two tests: a UDP item, and a TCP port nmap never saw open.
+     Neither is verified. The existing closed-port I7 test now first
+     shows port 80 open in an earlier VulnSight scan.
+2. **Report scan times are bounded.**
+   - A host whose scan time is before 2000-01-01, or more than 1 day in
+     the future, is rejected (400; nothing written).
+   - A time up to 1 day in the future (clock skew, or Nessus's
+     timezone-less `HOST_START` read as UTC) is clamped to the import
+     time.
+   - Without this, one future-dated file would set the watermark and
+     items' last evaluation in the future and freeze the target's
+     remediation until that date.
+   - I3 gains a future-date case and a pre-2000 case.
+
+Also fixed from the review, with no rule change:
+- an unknown XML encoding now gets a 400, not a 500;
+- the import task is idempotent and fails cleanly;
+- the target lock is `FOR NO KEY UPDATE`, so it doesn't block inserts
+  that reference the target;
+- IPv6 targets are compared in normalized form;
+- I6 now runs the real `finish_import_task`.
