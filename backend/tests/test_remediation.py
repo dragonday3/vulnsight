@@ -49,6 +49,7 @@ def _scan(
     lookups_failed: int = 0,
     created: datetime = T0,
     cpe: bool = True,
+    protocol: str = "tcp",
     findings_state: dict[str, FindingValidationState] | None = None,
 ) -> tuple[Scan, list[Service]]:
     """A completed scan of `target` whose services (port -> CVE ids, or None
@@ -77,7 +78,7 @@ def _scan(
         service = Service(
             asset_id=asset.id,
             port=port,
-            protocol="tcp",
+            protocol=protocol,
             state="open",
             evidence={"cpe": ["cpe:/a:apache:http_server:2.4.49"]} if cpe else {},
         )

@@ -27,6 +27,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.models.asset import Asset
 from app.models.finding import Finding, FindingValidationState
 from app.models.remediation import RemediationItem, RemediationState
 from app.models.scan import Scan
@@ -84,7 +85,11 @@ def may_change(item_last_evaluated: datetime, seen_at: datetime) -> bool:
 
 
 def verification_reason(
-    key: Key, services_by_port: dict, scan: Scan, item_sources: list[str] | None = None
+    key: Key,
+    services_by_port: dict,
+    scan: Scan,
+    item_sources: list[str],
+    probed_ports: set[tuple[int, str]],
 ) -> str | None:
     """Why a tracked CVE missing from this scan counts as gone, or None if
     the scan can't tell:
@@ -98,19 +103,20 @@ def verification_reason(
     proves nothing: Phase 9 showed a failed lookup looks exactly like "no
     CVEs".
 
-    Phase 12: port 0 (Nessus's host-level checks) is never "not observed",
-    since nmap can't observe it; and CVE_NOT_MATCHED needs "vulnsight"
-    among the item's sources, since VulnSight's silence about a CVE only
-    an imported scanner can detect proves nothing.
+    Phase 12 (absence only counts from a scan that could have seen it):
+    - SERVICE_NOT_OBSERVED needs a port VulnSight actually probes: one an
+      earlier VulnSight scan of this target saw open (`probed_ports`).
+      nmap scans TCP top-1000 only, so an imported UDP item, one on
+      another port, or Nessus's host-level port 0 is never "not observed";
+    - CVE_NOT_MATCHED needs "vulnsight" among the item's sources:
+      VulnSight's silence about a CVE only an imported scanner can detect
+      proves nothing.
     """
     service = services_by_port.get((key[0], key[1]))
     if service is None:
-        return SERVICE_NOT_OBSERVED if services_by_port and key[0] > 0 else None
-    if (
-        VULNSIGHT in (item_sources if item_sources is not None else [VULNSIGHT])
-        and _has_looked_up_cpe(service)
-        and scan.cve_lookups_failed == 0
-    ):
+        observable = key[0] > 0 and (key[0], key[1]) in probed_ports
+        return SERVICE_NOT_OBSERVED if services_by_port and observable else None
+    if VULNSIGHT in item_sources and _has_looked_up_cpe(service) and scan.cve_lookups_failed == 0:
         return CVE_NOT_MATCHED
     return None
 
@@ -144,7 +150,9 @@ def sync_remediation(db: Session, scan: Scan, services: list[Service]) -> dict[s
         target = (
             db.query(Target)
             .filter(Target.id == scan.target_id)
-            .with_for_update()
+            # NO KEY UPDATE: serializes syncs without blocking inserts that
+            # merely reference the target (scans, assets, imports).
+            .with_for_update(key_share=True)
             .populate_existing()
             .one()
         )
@@ -241,6 +249,23 @@ def sync_remediation(db: Session, scan: Scan, services: list[Service]) -> dict[s
             else:
                 counts["updated"] += 1
 
+        # (port, protocol) pairs VulnSight scans of this target have seen
+        # open: the only ports where "no longer open" means anything.
+        probed_ports: set[tuple[int, str]] = set()
+        if source == VULNSIGHT:
+            probed_ports = {
+                (port, protocol)
+                for port, protocol in db.query(Service.port, Service.protocol)
+                .join(Asset, Service.asset_id == Asset.id)
+                .join(Scan, Asset.scan_id == Scan.id)
+                .filter(
+                    Scan.target_id == scan.target_id,
+                    Scan.config["scanner"].astext == "nmap",
+                    Scan.created_at <= seen_at,
+                )
+                .distinct()
+            }
+
         for key, item in items.items():
             if source != VULNSIGHT:
                 break  # an import never verifies: absence from an export isn't a fix
@@ -248,7 +273,7 @@ def sync_remediation(db: Session, scan: Scan, services: list[Service]) -> dict[s
                 continue
             if not may_change(item.last_evaluated_at, seen_at):
                 continue  # an older scan can't verify what a newer one saw
-            reason = verification_reason(key, services_by_port, scan, item.sources)
+            reason = verification_reason(key, services_by_port, scan, item.sources, probed_ports)
             if reason is None:
                 continue
             item.last_evaluated_at = seen_at

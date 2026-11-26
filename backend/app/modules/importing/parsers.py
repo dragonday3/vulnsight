@@ -65,7 +65,8 @@ def parse_report(raw: bytes) -> ParsedReport:
         root = fromstring(raw, forbid_dtd=True, forbid_entities=True, forbid_external=True)
     except DefusedXmlException as exc:
         raise ImportFormatError(f"Refused: the file declares a DTD or entities ({exc})") from exc
-    except ParseError as exc:
+    except (ParseError, LookupError, ValueError) as exc:
+        # LookupError / ValueError: an unknown or unsupported declared encoding.
         raise ImportFormatError(f"Malformed XML: {exc}") from exc
     if root.tag == "NessusClientData_v2":
         return _parse_nessus(root)

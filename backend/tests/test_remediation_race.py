@@ -145,6 +145,8 @@ def test_i7_vulnsight_rescan_does_not_verify_nessus_only_item_on_open_port(db: S
 
 def test_i7_closed_port_verifies_nessus_only_item(db: Session) -> None:
     target = _target(db)
+    s0, sv0 = _scan(db, target, {80: None}, created=T0 - DAY)  # VulnSight saw :80 open
+    sync_remediation(db, s0, sv0)
     imp, svi = _scan(db, target, {80: ["CVE-N"]}, scanner="nessus", created=T0)
     sync_remediation(db, imp, svi)
     s2, sv2 = _scan(db, target, {443: None}, created=T0 + DAY)
@@ -161,6 +163,28 @@ def test_i7_port_zero_is_never_verified_by_a_closed_port(db: Session) -> None:
     s2, sv2 = _scan(db, target, {443: None}, created=T0 + DAY)
     sync_remediation(db, s2, sv2)
     assert _items(db, target)["CVE-H"].state == RemediationState.OPEN
+
+
+def test_i7_udp_item_is_never_verified_by_a_tcp_scan(db: Session) -> None:
+    """nmap probes TCP only: an imported 161/udp item's absence proves nothing
+    (prereg amendment 1)."""
+    target = _target(db)
+    imp, svi = _scan(db, target, {161: ["CVE-U"]}, scanner="nessus", created=T0, protocol="udp")
+    sync_remediation(db, imp, svi)
+    s2, sv2 = _scan(db, target, {443: None}, created=T0 + DAY)
+    sync_remediation(db, s2, sv2)
+    assert _items(db, target)["CVE-U"].state == RemediationState.OPEN
+
+
+def test_i7_port_vulnsight_never_saw_open_is_not_verified(db: Session) -> None:
+    """A TCP port no VulnSight scan of this target has seen open (e.g.
+    outside nmap's top 1000) is not evidence (prereg amendment 1)."""
+    target = _target(db)
+    imp, svi = _scan(db, target, {49999: ["CVE-P"]}, scanner="nessus", created=T0)
+    sync_remediation(db, imp, svi)
+    s2, sv2 = _scan(db, target, {443: None}, created=T0 + DAY)
+    assert sync_remediation(db, s2, sv2)["verified"] == 0
+    assert _items(db, target)["CVE-P"].state == RemediationState.OPEN
 
 
 def test_i7_import_never_verifies(db: Session) -> None:

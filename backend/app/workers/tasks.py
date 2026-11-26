@@ -107,7 +107,7 @@ def _finish_scan(db: Session, scan: Scan, asset: Asset, services: list[Service])
         db.commit()
     except Exception:
         db.rollback()
-        logger.exception("run_scan_task: scan %s threat-intel enrichment failed", scan.id)
+        logger.exception("scan pipeline: scan %s threat-intel enrichment failed", scan.id)
         try:
             scan.threat_intel_failed = 1
             db.commit()
@@ -137,7 +137,7 @@ def _finish_scan(db: Session, scan: Scan, asset: Asset, services: list[Service])
         score_assets(db, scan, [asset])
     except Exception:
         db.rollback()
-        logger.exception("run_scan_task: scan %s risk scoring failed", scan.id)
+        logger.exception("scan pipeline: scan %s risk scoring failed", scan.id)
 
     # Step 10.6 (Phase 8): REPORT_GENERATION. Same best-effort shape as
     # every prior post-discovery stage: report-generation failures must
@@ -154,7 +154,7 @@ def _finish_scan(db: Session, scan: Scan, asset: Asset, services: list[Service])
         generate_report(db, scan, [asset])
     except Exception:
         db.rollback()
-        logger.exception("run_scan_task: scan %s report generation failed", scan.id)
+        logger.exception("scan pipeline: scan %s report generation failed", scan.id)
 
     # Step 11: unchanged (was Step 10).
     scan.status = ScanStatus.COMPLETED
@@ -404,12 +404,22 @@ def finish_import_task(scan_id: str) -> None:
         if scan is None or not (scan.config or {}).get("import"):
             logger.info("finish_import_task: import scan %s not found, skipping", scan_id)
             return
+        if scan.status != ScanStatus.CORRELATING:
+            # Idempotent: a redelivered task must not re-run the tail.
+            logger.info("finish_import_task: scan %s already %s, skipping", scan_id, scan.status)
+            return
         asset = (
             db.query(Asset)
             .options(selectinload(Asset.services).selectinload(Service.findings))
             .filter(Asset.scan_id == scan.id)
-            .one()
+            .one_or_none()
         )
+        if asset is None:
+            scan.status = ScanStatus.FAILED
+            scan.error_message = "Imported scan has no asset"
+            scan.completed_at = datetime.now(UTC)
+            db.commit()
+            return
         _finish_scan(db, scan, asset, list(asset.services))
     finally:
         scan_id_var.reset(scan_id_token)

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import ipaddress
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -40,9 +41,32 @@ IMPORT_DEFAULT_CONFIDENCE = 90.0
 
 MAX_SERVICE_NAME_LENGTH = 50
 
+# Report scan times are bounded (prereg amendment 1): a future-dated file
+# would otherwise push the remediation watermark and items' last
+# evaluation into the future and freeze the target's remediation.
+EARLIEST_SCAN_TIME = datetime(2000, 1, 1, tzinfo=UTC)
+MAX_FUTURE_SKEW = timedelta(days=1)
+
 
 def _norm(value: str) -> str:
-    return value.strip().lower().rstrip(".")
+    value = value.strip().lower().rstrip(".")
+    try:
+        return ipaddress.ip_address(value).compressed  # 2001:0db8::0:1 == 2001:db8::1
+    except ValueError:
+        return value
+
+
+def check_scan_times(report: ParsedReport, now: datetime) -> None:
+    """Reject a host dated before 2000 or more than a day ahead; clamp a
+    small future skew (clock drift, Nessus's timezone-less HOST_START read
+    as UTC) to `now`."""
+    for host in report.hosts:
+        if host.scan_start < EARLIEST_SCAN_TIME or host.scan_start > now + MAX_FUTURE_SKEW:
+            raise ValidationConflictError(
+                f"Host {host.names[0][:100] if host.names else '?'!r} has an implausible "
+                f"scan time ({host.scan_start.isoformat()})"
+            )
+        host.scan_start = min(host.scan_start, now)
 
 
 def match_target(host: ParsedHost, targets: list[Target]) -> Target | None:
@@ -77,6 +101,7 @@ def import_report(db: Session, project_id: uuid.UUID, raw: bytes) -> dict:
         report = parse_report(raw)
     except ImportFormatError as exc:
         raise ValidationConflictError(str(exc)) from exc
+    check_scan_times(report, datetime.now(UTC))
 
     targets = db.query(Target).filter(Target.project_id == project_id).all()
     scans: list[dict] = []
