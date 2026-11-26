@@ -138,5 +138,12 @@ class Finding(Base):
     # A feature the CVE's description requires (e.g. "http2", "tls") that
     # VulnSight saw no evidence of on this asset. Not proof it's absent.
     unverified_prerequisite: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Phase 12: who reported it: "vulnsight" (its own nmap/NVD correlation),
+    # or an imported "nessus" / "openvas" report. Imported rows store
+    # "import:<source>:<plugin id / NVT OID>" in matched_cpe (no CPE exists)
+    # and the scanner's own severity, plugin id and QoD in evidence.
+    source: Mapped[str] = mapped_column(
+        String(20), default="vulnsight", server_default="vulnsight", nullable=False
+    )
 
     service: Mapped["Service"] = relationship(back_populates="findings")

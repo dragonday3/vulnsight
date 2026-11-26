@@ -25,7 +25,9 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base_class import Base
@@ -101,6 +103,18 @@ class RemediationItem(Base):
     # looks the same).
     verification_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)
     reopened_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Phase 12: every source that has reported this item ("vulnsight",
+    # "nessus", "openvas"). A VulnSight rescan may verify by "CVE not
+    # matched" only if "vulnsight" is among them.
+    sources: Mapped[list] = mapped_column(
+        JSONB,
+        default=lambda: ["vulnsight"],
+        server_default=text("'[\"vulnsight\"]'::jsonb"),
+        nullable=False,
+    )
+    # Phase 12 race fix: scan time of the newest scan that saw or verified
+    # this item. No older scan may change it.
+    last_evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     # Seeded demo data (scripts/seed_simulated_remediation.py). Never real.
     simulated: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False

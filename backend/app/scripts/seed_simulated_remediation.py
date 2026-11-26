@@ -84,6 +84,7 @@ def seed(db: Session, now: datetime | None = None) -> Project | None:
             note="simulated" if state == RemediationState.ACCEPTED else None,
             first_seen_at=first_seen,
             last_seen_at=first_seen,
+            last_evaluated_at=first_seen,
             due_at=due,
             state_changed_at=first_seen,
             simulated=True,
@@ -94,6 +95,7 @@ def seed(db: Session, now: datetime | None = None) -> Project | None:
             item.fixed_at = item.verified_at
             item.verification_reason = "cve_not_matched"
             item.last_seen_at = item.verified_at - timedelta(days=1)
+            item.last_evaluated_at = item.verified_at
         db.add(item)
     db.commit()
     return project

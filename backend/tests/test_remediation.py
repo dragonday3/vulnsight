@@ -242,7 +242,7 @@ def test_native_scans_never_create_or_verify(db: Session) -> None:
     sync_remediation(db, s1, sv1)
     s2, sv2 = _scan(db, target, {443: None}, scanner="native")
     counts = sync_remediation(db, s2, sv2)
-    assert counts == {"created": 0, "updated": 0, "reopened": 0, "verified": 0}
+    assert counts == {"created": 0, "updated": 0, "reopened": 0, "verified": 0, "stale": 0}
     assert _items(db, target)["CVE-A"].state == RemediationState.OPEN
 
 

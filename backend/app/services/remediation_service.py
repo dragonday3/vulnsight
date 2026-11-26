@@ -43,7 +43,9 @@ def list_items(
 
 
 def update_item(db: Session, item_id: uuid.UUID, data: RemediationUpdate) -> RemediationItem:
-    item = db.get(RemediationItem, item_id)
+    # Row lock: waits for a running rescan sync of this item to commit, so
+    # the analyst's change is never decided on, or overwritten by, a stale read.
+    item = db.get(RemediationItem, item_id, with_for_update=True, populate_existing=True)
     if item is None:
         raise NotFoundError(f"Remediation item {item_id} not found")
     if data.state != item.state and data.state not in _ALLOWED[item.state]:
