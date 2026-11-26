@@ -28,6 +28,7 @@ class RemediationItemRead(BaseModel):
     verified_at: datetime | None
     verification_reason: str | None
     reopened_count: int
+    sources: list[str]
     simulated: bool
 
 

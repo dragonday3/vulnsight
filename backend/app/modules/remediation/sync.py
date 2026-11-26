@@ -68,7 +68,13 @@ CVE_NOT_MATCHED = "cve_not_matched"
 
 
 def scan_source(scan: Scan) -> str | None:
-    return _SOURCES.get((scan.config or {}).get("scanner"))
+    config = scan.config or {}
+    source = _SOURCES.get(str(config.get("scanner")))
+    # An import source only counts on a scan the import service created
+    # (POST /scans refuses the "import" key).
+    if source not in (None, VULNSIGHT) and config.get("import") is not True:
+        return None
+    return source
 
 
 def may_change(item_last_evaluated: datetime, seen_at: datetime) -> bool:

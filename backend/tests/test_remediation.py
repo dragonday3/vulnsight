@@ -57,7 +57,10 @@ def _scan(
         project_id=target.project_id,
         target_id=target.id,
         status=ScanStatus.CORRELATING,
-        config={"scanner": scanner},
+        config={
+            "scanner": scanner,
+            **({"import": True} if scanner in ("nessus", "openvas") else {}),
+        },
         created_at=created,
         cve_lookups_total=1,
         cve_lookups_failed=lookups_failed,

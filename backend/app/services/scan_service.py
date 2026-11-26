@@ -31,6 +31,9 @@ def create_scan(db: Session, data: ScanCreate) -> Scan:
     # though Target creation already enforces this via its own validator.
     if target.authorization_confirmed is not True:
         raise ValidationConflictError("Target is not confirmed as authorized")
+    if "import" in data.config:
+        # Reserved for scans created by POST /projects/{id}/imports (Phase 12).
+        raise ValidationConflictError("`import` is reserved for imported reports")
 
     scan = Scan(
         project_id=data.project_id,

@@ -94,18 +94,18 @@ def test_r4_concurrent_syncs_of_one_target_do_not_collide(caplog) -> None:
         barrier = threading.Barrier(2)
         results: list[dict] = []
 
-        def worker(scan_id) -> None:
+        def worker(scan_id, barrier: threading.Barrier, results: list[dict]) -> None:
             with Session(test_engine) as s:
                 scan = s.get(Scan, scan_id)
-                services = (
-                    s.query(Service).join(Service.asset).filter_by(scan_id=scan_id).all()
-                )
+                services = s.query(Service).join(Service.asset).filter_by(scan_id=scan_id).all()
                 for service in services:
                     _ = service.findings  # load before the race, like run_scan_task
                 barrier.wait()
                 results.append(sync_remediation(s, scan, services))
 
-        threads = [threading.Thread(target=worker, args=(sid,)) for sid in scan_ids]
+        threads = [
+            threading.Thread(target=worker, args=(sid, barrier, results)) for sid in scan_ids
+        ]
         for t in threads:
             t.start()
         for t in threads:

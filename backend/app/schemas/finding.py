@@ -29,6 +29,7 @@ class FindingRead(BaseModel):
     epss: float | None
     epss_percentile: float | None
     unverified_prerequisite: str | None
+    source: str = "vulnsight"
 
 
 class FindingValidationUpdate(BaseModel):

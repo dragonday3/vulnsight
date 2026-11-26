@@ -3,6 +3,7 @@ import uuid
 from datetime import UTC, datetime
 
 import redis
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import get_settings
 from app.core.logging import scan_id_var
@@ -90,6 +91,75 @@ def ping() -> str:
     in this plan on top of the plumbing this one verifies.
     """
     return "pong"
+
+
+def _finish_scan(db: Session, scan: Scan, asset: Asset, services: list[Service]) -> None:
+    """The pipeline tail shared by run_scan_task and finish_import_task
+    (Phase 12): enrichment and remediation sync (still inside CORRELATING),
+    then RISK_ANALYSIS, REPORT_GENERATION and COMPLETED. Every step is
+    best-effort and never fails the scan."""
+    # Phase 10, still inside CORRELATING (no new stage): KEV/EPSS and the
+    # applicability flag on the findings just written. Best-effort; the
+    # failed-fetch count is recorded so missing exploit data is visible.
+    try:
+        redis_client = redis.Redis.from_url(get_settings().REDIS_URL)
+        scan.threat_intel_failed = enrich_findings(db, redis_client, services)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("run_scan_task: scan %s threat-intel enrichment failed", scan.id)
+        try:
+            scan.threat_intel_failed = 1
+            db.commit()
+        except Exception:
+            db.rollback()
+
+    # Phase 11, still inside CORRELATING (no new stage): track this scan's
+    # findings as remediation items across scans, and verify tracked
+    # items a trustworthy rescan no longer finds. Best-effort; never
+    # raises, never touches scan.status.
+    sync_remediation(db, scan, services)
+
+    # Step 10.5 (Phase 7): RISK_ANALYSIS. Same best-effort shape as Steps
+    # 9/9.5/10: scoring failures must never fail the scan, so any
+    # exception here is logged and swallowed -- no scan.status
+    # mutation, no return, always falls through to REPORT_GENERATION
+    # below. Sits in the slot the ScanStatus enum already reserved
+    # between CORRELATING and REPORT_GENERATION, now wired up by Phase
+    # 8 immediately after this stage, same as ANALYZING fell straight
+    # through to CORRELATING before Phase 6 existed. `asset` is the
+    # single Asset ORM object already built in Steps 5-7 above (one
+    # Asset per non-CIDR scan today); passed as a one-element list for
+    # signature symmetry with correlate_services/analyze_services.
+    scan.status = ScanStatus.RISK_ANALYSIS
+    db.commit()
+    try:
+        score_assets(db, scan, [asset])
+    except Exception:
+        db.rollback()
+        logger.exception("run_scan_task: scan %s risk scoring failed", scan.id)
+
+    # Step 10.6 (Phase 8): REPORT_GENERATION. Same best-effort shape as
+    # every prior post-discovery stage: report-generation failures must
+    # never fail the scan, so any exception here is logged and
+    # swallowed -- no scan.status mutation, no return, always falls
+    # through to COMPLETED below. This is the last slot the ScanStatus
+    # enum reserved -- after this stage, every enum value is wired to
+    # real behavior. `asset` is the same single Asset ORM object
+    # already in scope from Steps 5-7, reused exactly as
+    # score_assets(db, scan, [asset]) already is one stage earlier.
+    scan.status = ScanStatus.REPORT_GENERATION
+    db.commit()
+    try:
+        generate_report(db, scan, [asset])
+    except Exception:
+        db.rollback()
+        logger.exception("run_scan_task: scan %s report generation failed", scan.id)
+
+    # Step 11: unchanged (was Step 10).
+    scan.status = ScanStatus.COMPLETED
+    scan.completed_at = datetime.now(UTC)
+    db.commit()
 
 
 @celery_app.task
@@ -315,69 +385,32 @@ def run_scan_task(scan_id: str) -> None:
                     "run_scan_task: scan %s could not record correlation failure", scan_id
                 )
 
-        # Phase 10, still inside CORRELATING (no new stage): KEV/EPSS and the
-        # applicability flag on the findings just written. Best-effort; the
-        # failed-fetch count is recorded so missing exploit data is visible.
-        try:
-            redis_client = redis.Redis.from_url(get_settings().REDIS_URL)
-            scan.threat_intel_failed = enrich_findings(db, redis_client, services)
-            db.commit()
-        except Exception:
-            db.rollback()
-            logger.exception("run_scan_task: scan %s threat-intel enrichment failed", scan_id)
-            try:
-                scan.threat_intel_failed = 1
-                db.commit()
-            except Exception:
-                db.rollback()
-
-        # Phase 11, still inside CORRELATING (no new stage): track this scan's
-        # findings as remediation items across scans, and verify tracked
-        # items a trustworthy rescan no longer finds. Best-effort; never
-        # raises, never touches scan.status.
-        sync_remediation(db, scan, services)
-
-        # Step 10.5 (Phase 7): RISK_ANALYSIS. Same best-effort shape as Steps
-        # 9/9.5/10: scoring failures must never fail the scan, so any
-        # exception here is logged and swallowed -- no scan.status
-        # mutation, no return, always falls through to REPORT_GENERATION
-        # below. Sits in the slot the ScanStatus enum already reserved
-        # between CORRELATING and REPORT_GENERATION, now wired up by Phase
-        # 8 immediately after this stage, same as ANALYZING fell straight
-        # through to CORRELATING before Phase 6 existed. `asset` is the
-        # single Asset ORM object already built in Steps 5-7 above (one
-        # Asset per non-CIDR scan today); passed as a one-element list for
-        # signature symmetry with correlate_services/analyze_services.
-        scan.status = ScanStatus.RISK_ANALYSIS
-        db.commit()
-        try:
-            score_assets(db, scan, [asset])
-        except Exception:
-            db.rollback()
-            logger.exception("run_scan_task: scan %s risk scoring failed", scan_id)
-
-        # Step 10.6 (Phase 8): REPORT_GENERATION. Same best-effort shape as
-        # every prior post-discovery stage: report-generation failures must
-        # never fail the scan, so any exception here is logged and
-        # swallowed -- no scan.status mutation, no return, always falls
-        # through to COMPLETED below. This is the last slot the ScanStatus
-        # enum reserved -- after this stage, every enum value is wired to
-        # real behavior. `asset` is the same single Asset ORM object
-        # already in scope from Steps 5-7, reused exactly as
-        # score_assets(db, scan, [asset]) already is one stage earlier.
-        scan.status = ScanStatus.REPORT_GENERATION
-        db.commit()
-        try:
-            generate_report(db, scan, [asset])
-        except Exception:
-            db.rollback()
-            logger.exception("run_scan_task: scan %s report generation failed", scan_id)
-
-        # Step 11: unchanged (was Step 10).
-        scan.status = ScanStatus.COMPLETED
-        scan.completed_at = datetime.now(UTC)
-        db.commit()
+        _finish_scan(db, scan, asset, services)
     finally:
         if scan_id_token is not None:
             scan_id_var.reset(scan_id_token)
+        db.close()
+
+
+@celery_app.task
+def finish_import_task(scan_id: str) -> None:
+    """Phase 12: an imported Nessus/OpenVAS report enters the pipeline at
+    CORRELATING with its findings already written (services/import_service.py);
+    this runs the same tail as a VulnSight scan. No discovery, no NVD lookup."""
+    db = SessionLocal()
+    scan_id_token = scan_id_var.set(scan_id)
+    try:
+        scan = db.get(Scan, uuid.UUID(scan_id))
+        if scan is None or not (scan.config or {}).get("import"):
+            logger.info("finish_import_task: import scan %s not found, skipping", scan_id)
+            return
+        asset = (
+            db.query(Asset)
+            .options(selectinload(Asset.services).selectinload(Service.findings))
+            .filter(Asset.scan_id == scan.id)
+            .one()
+        )
+        _finish_scan(db, scan, asset, list(asset.services))
+    finally:
+        scan_id_var.reset(scan_id_token)
         db.close()

@@ -1,0 +1,51 @@
+<?xml version="1.0" ?>
+<!-- GENERATED test fixture for VulnSight (Phase 12). Not real scan output:
+     hand-written to follow the .nessus v2 format. Hosts are made up. -->
+<NessusClientData_v2>
+  <Policy><policyName>generated-test</policyName></Policy>
+  <Report name="generated-test-report">
+    <ReportHost name="10.20.0.5">
+      <HostProperties>
+        <tag name="HOST_END">Tue Nov 24 10:20:00 2026</tag>
+        <tag name="host-ip">10.20.0.5</tag>
+        <tag name="host-fqdn">web.lab.example</tag>
+        <tag name="HOST_START_TIMESTAMP">1795514400</tag>
+        <tag name="HOST_START">Tue Nov 24 10:00:00 2026</tag>
+      </HostProperties>
+      <ReportItem port="0" svc_name="general" protocol="tcp" severity="0" pluginID="19506" pluginName="Nessus Scan Information" pluginFamily="Settings">
+        <description>Information about this scan.</description>
+      </ReportItem>
+      <ReportItem port="80" svc_name="www" protocol="tcp" severity="4" pluginID="153584" pluginName="Apache 2.4.49 &lt; 2.4.51 Multiple Vulnerabilities" pluginFamily="Web Servers">
+        <synopsis>The remote web server is affected by multiple vulnerabilities.</synopsis>
+        <cve>CVE-2021-41773</cve>
+        <cve>CVE-2021-42013</cve>
+        <cvss3_base_score>9.8</cvss3_base_score>
+        <cvss3_vector>CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H</cvss3_vector>
+        <cvss_base_score>7.5</cvss_base_score>
+      </ReportItem>
+      <ReportItem port="80" svc_name="www" protocol="tcp" severity="2" pluginID="11213" pluginName="HTTP TRACE / TRACK Methods Allowed" pluginFamily="Web Servers">
+        <synopsis>Debugging functions are enabled on the remote web server.</synopsis>
+        <cvss_base_score>5.0</cvss_base_score>
+      </ReportItem>
+      <ReportItem port="0" svc_name="general" protocol="tcp" severity="3" pluginID="900001" pluginName="Local OpenSSL package outdated" pluginFamily="Local checks">
+        <synopsis>A local package is out of date.</synopsis>
+        <cve>CVE-2022-0778</cve>
+        <cve>not-a-cve</cve>
+        <cvss3_base_score>7.5</cvss3_base_score>
+      </ReportItem>
+      <ReportItem port="22" svc_name="ssh" protocol="tcp" severity="0" pluginID="10267" pluginName="SSH Server Type and Version Information" pluginFamily="Service detection">
+        <description>An SSH server is listening on this port.</description>
+      </ReportItem>
+    </ReportHost>
+    <ReportHost name="db.lab.example">
+      <HostProperties>
+        <tag name="host-ip">10.20.0.9</tag>
+        <tag name="HOST_START">Tue Nov 24 11:00:00 2026</tag>
+      </HostProperties>
+      <ReportItem port="5432" svc_name="postgresql" protocol="tcp" severity="3" pluginID="900002" pluginName="PostgreSQL outdated" pluginFamily="Databases">
+        <cve>CVE-2023-2454</cve>
+        <cvss_base_score>7.2</cvss_base_score>
+      </ReportItem>
+    </ReportHost>
+  </Report>
+</NessusClientData_v2>

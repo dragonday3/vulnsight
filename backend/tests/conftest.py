@@ -79,7 +79,7 @@ from app.db.session import get_db  # noqa: E402
 # relationship() string references like Mapped["Target"] resolve correctly.
 from app.main import app  # noqa: E402
 from app.workers.celery_app import celery_app  # noqa: E402
-from app.workers.tasks import run_scan_task  # noqa: E402
+from app.workers.tasks import finish_import_task, run_scan_task  # noqa: E402
 
 test_engine: Engine = create_engine(TEST_DATABASE_URL)
 
@@ -198,6 +198,13 @@ def mock_run_scan_task_apply_async() -> Generator[MagicMock, None, None]:
     """
     with patch.object(run_scan_task, "apply_async") as mock_apply_async:
         yield mock_apply_async
+
+
+@pytest.fixture(autouse=True)
+def mock_finish_import_task_delay() -> Generator[MagicMock, None, None]:
+    """Same safety net for Phase 12's import task: never reach the broker."""
+    with patch.object(finish_import_task, "delay") as mock_delay:
+        yield mock_delay
 
 
 @pytest.fixture(autouse=True)
